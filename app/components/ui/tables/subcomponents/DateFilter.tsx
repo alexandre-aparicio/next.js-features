@@ -20,14 +20,13 @@ export default function DateFilter({
   onFechaFinChange,
 }: DateFilterProps) {
   return (
-    <div className="mb-4">
-      <div className="flex items-center space-x-3">
-        <span className="text-gray-600">Mostrar:</span>
-
+    <div>
+      <div className="flex items-center">
+        <span>Mostrar:</span>
         <select
           value={filtro}
           onChange={(e) => onFiltroChange(e.target.value as DateFilterType)}
-          className="border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
+          className="border px-2 py-1"
         >
           <option value="este_mes">Este Mes</option>
           <option value="mes_pasado">Mes Pasado</option>
@@ -36,19 +35,18 @@ export default function DateFilter({
       </div>
 
       {filtro === "personalizado" && (
-        <div className="flex space-x-3 mt-3">
+        <div className="flex mt-2">
           <input
             type="date"
             value={fechaInicio}
             onChange={(e) => onFechaInicioChange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
+            className="border px-2 py-1"
           />
-
           <input
             type="date"
             value={fechaFin}
             onChange={(e) => onFechaFinChange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
+            className="border px-2 py-1"
           />
         </div>
       )}

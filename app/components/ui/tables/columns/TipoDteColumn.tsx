@@ -1,6 +1,6 @@
 // components/tables/columns/TipoDteColumn.tsx
-import { TableColumn } from "../../types/TableColumnTypes";
-import { Invoice } from "../../types/Invoice";
+import { TableColumn } from "../types/TableColumnTypes";
+import { Invoice } from "../types/Invoice";
 
 export const TipoDteColumn: TableColumn<Invoice> = {
   id: "tipoDte",
@@ -15,75 +15,75 @@ export const TipoDteColumn: TableColumn<Invoice> = {
     switch (row.tipoDte) {
       case "01":
         text = "Consumidor Final";
-        backgroundColor = "#DCFCE7";
-        color = "#166534";
-        border = "1px solid #86EFAC";
+        backgroundColor = "#f5f5f5";
+        color = "#404040";
+        border = "1px solid #d4d4d4";
         break;
       case "03":
         text = "Crédito Fiscal";
-        backgroundColor = "#DBEAFE";
-        color = "#1E40AF";
-        border = "1px solid #93C5FD";
+        backgroundColor = "#e5e5e5";
+        color = "#525252";
+        border = "1px solid #a3a3a3";
         break;
       case "07":
         text = "Comprobante Retención";
-        backgroundColor = "#F3E8FF";
-        color = "#7E22CE";
-        border = "1px solid #C084FC";
+        backgroundColor = "#d4d4d4";
+        color = "#404040";
+        border = "1px solid #737373";
         break;
       case "08":
         text = "Comprobante Liquidación";
-        backgroundColor = "#FEF9C3";
-        color = "#854D0E";
-        border = "1px solid #FDE047";
+        backgroundColor = "#f5f5f5";
+        color = "#525252";
+        border = "1px solid #d4d4d4";
         break; 
       case "11":
         text = "Factura Exportación";
-        backgroundColor = "#FCE7F3";
-        color = "#BE185D";
-        border = "1px solid #F9A8D4";
+        backgroundColor = "#e5e5e5";
+        color = "#404040";
+        border = "1px solid #a3a3a3";
         break;  
       case "14":
         text = "Sujeto Excluido";
-        backgroundColor = "#FFEDD5";
-        color = "#9A3412";
-        border = "1px solid #FDBA74";
+        backgroundColor = "#d4d4d4";
+        color = "#525252";
+        border = "1px solid #737373";
         break; 
       case "15":
         text = "Comprobante Donación";
-        backgroundColor = "#E0E7FF";
-        color = "#3730A3";
-        border = "1px solid #A5B4FC";
+        backgroundColor = "#f5f5f5";
+        color = "#404040";
+        border = "1px solid #d4d4d4";
         break;  
       case "05":
         text = "Nota de Crédito";
-        backgroundColor = "#0b98b1ff";
-        color = "white";
-        border = "1px solid #b8fcfc";
+        backgroundColor = "#a3a3a3";
+        color = "#ffffff";
+        border = "1px solid #737373";
         break;  
       case "06":
         text = "Nota de Débito";
-        backgroundColor = "#58b3c7";
-        color = "white";
-        border = "1px solid #b8fcfc";
+        backgroundColor = "#737373";
+        color = "#ffffff";
+        border = "1px solid #525252";
         break; 
       case "04":
         text = "Nota de Remisión";
-        backgroundColor = "#7ad4e4";
-        color = "white";
-        border = "1px solid #b8fcfc";
+        backgroundColor = "#8a8a8a";
+        color = "#ffffff";
+        border = "1px solid #666666";
         break;  
       case "09":
         text = "Doc. Cont. Liquidacion";
-        backgroundColor = "#7ad4e4";
-        color = "white";
-        border = "1px solid #b8fcfc";
+        backgroundColor = "#8a8a8a";
+        color = "#ffffff";
+        border = "1px solid #666666";
         break;                                               
       default:
         text = "Otro";
-        backgroundColor = "#F3F4F6";
-        color = "#374151";
-        border = "1px solid #D1D5DB";
+        backgroundColor = "#f5f5f5";
+        color = "#737373";
+        border = "1px solid #d4d4d4";
     }
 
     return (

@@ -28,7 +28,7 @@ export const fetchFacturas = async (
   setError: React.Dispatch<React.SetStateAction<string | null>>,
   setRows: React.Dispatch<React.SetStateAction<Invoice[]>>
 ) => {
-  const API_BASE_URL = "http://93.127.135.52:8110/api/v1/prueba-001";
+  const API_BASE_URL = "https://api-fact.beeprojects.net/api/v1/prueba-001";
   
   setLoading(true);
   setError(null);

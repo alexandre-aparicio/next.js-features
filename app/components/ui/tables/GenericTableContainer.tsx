@@ -105,15 +105,15 @@ export default function GenericTableContainer<T extends { id: number }>({
   }, [busqueda, sortConfig, itemsPorPagina]);
 
   if (error) {
-    return <div className="text-red-600 p-4">{error}</div>;
+    return <div>{error}</div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4">
-        <h6 className="text-lg font-semibold mb-2 lg:mb-0">{title}</h6>
+      <div className="flex justify-between items-center mb-4">
+        <h6>{title}</h6>
 
-        <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+        <div className="flex items-center">
           {enableDateFilter && (
             <DateFilter
               filtro={filtro}
@@ -142,15 +142,15 @@ export default function GenericTableContainer<T extends { id: number }>({
       </div>
 
       {loading ? (
-        <div className="text-center py-8">Cargando...</div>
+        <div>Cargando...</div>
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-200">
-              <thead className="bg-gray-100 text-gray-700">
+          <div>
+            <table className="w-full border">
+              <thead>
                 <tr>
                   {columns.map((col) => (
-                    <th key={String(col.id)} className="px-3 py-2 text-left">
+                    <th key={String(col.id)} className="text-left">
                       <SortableHeader
                         label={col.header}
                         sortable={col.sortable}
@@ -165,12 +165,12 @@ export default function GenericTableContainer<T extends { id: number }>({
               </thead>
               <tbody>
                 {paginatedData.map((row, idx) => (
-                  <tr key={idx} className="border-t border-gray-200 hover:bg-gray-50">
+                  <tr key={idx} className="border-t">
                     {columns.map((col) => {
                       const cellValue = row[col.id as keyof T];
                       const isEditingCell = isEditing(row, String(col.id));
                       return (
-                        <td key={String(col.id)} className="px-3 py-2">
+                        <td key={String(col.id)}>
                           {col.editable ? (
                             <EditableCell
                               value={cellValue}
@@ -194,7 +194,7 @@ export default function GenericTableContainer<T extends { id: number }>({
             </table>
           </div>
 
-          <div className="flex flex-col lg:flex-row lg:justify-between mt-4 gap-2">
+          <div className="flex justify-between mt-4">
             <Pagination
               paginaActual={paginaActual}
               totalPaginas={totalPaginas}

@@ -36,7 +36,7 @@ export default function InvoiceTableProvider() {
   };
 
   const columns: TableColumn<Invoice>[] = [
-    { id: "id", header: "ID", sortable: false, render: (r) => r.id },
+
     { id: "numeroFactura", header: "Número", sortable: false, render: (r) => r.numeroFactura },
     ClienteColumn,
     FechaColumn,

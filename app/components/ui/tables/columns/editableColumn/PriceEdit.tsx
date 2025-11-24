@@ -12,13 +12,11 @@ export function PriceEdit({ value, onSave, onCancel }: PriceEditProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-
     setEditValue(value.toString());
   }, [value]);
 
   const handleSave = () => {
     const numericValue = parseFloat(editValue);
-
 
     if (isNaN(numericValue)) {
       setError("Por favor ingresa un número válido");
@@ -36,10 +34,8 @@ export function PriceEdit({ value, onSave, onCancel }: PriceEditProps) {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-
       handleSave();
     } else if (e.key === 'Escape') {
-
       onCancel();
     }
   };
@@ -47,30 +43,31 @@ export function PriceEdit({ value, onSave, onCancel }: PriceEditProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     
-    // Permitir solo números y un punto decimal
     if (/^\d*\.?\d*$/.test(newValue)) {
       setEditValue(newValue);
       setError("");
     }
   };
 
+  // Seleccionar todo el texto al enfocar
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
   return (
-    <div className="relative">
-      <div className="flex items-center">
-        <span className="text-gray-500 mr-1">$</span>
-        <input
-          type="text"
-          value={editValue}
-          onChange={handleChange}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          className="w-24 px-2 py-1 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-          placeholder="0.00"
-        />
-      </div>
+    <div>
+      <input
+        type="text"
+        value={editValue}
+        onChange={handleChange}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        autoFocus
+        className="w-20 border-none focus:outline-none bg-transparent"
+      />
       {error && (
-        <div className="absolute top-full left-0 mt-1 text-xs text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200">
+        <div className="text-xs text-red-500">
           {error}
         </div>
       )}
