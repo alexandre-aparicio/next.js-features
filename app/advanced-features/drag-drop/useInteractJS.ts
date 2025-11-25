@@ -19,7 +19,6 @@ export const useInteractJS = (
       if (element.dataset.interactInitialized === "true") return;
       element.dataset.interactInitialized = "true";
 
-      // Usar la posición actual del item en lugar de mantener un estado local
       let currentPos = { x: item.x, y: item.y };
 
       interact(element).draggable({
@@ -27,18 +26,14 @@ export const useInteractJS = (
           start(event: any) {
             element.style.transition = "none";
             
-            // RESETEAR LA POSICIÓN AL INICIO DEL DRAG
-            // Usar la posición actual del elemento en lugar del estado anterior
             const rect = element.getBoundingClientRect();
             const containerRect = containerRef.current!.getBoundingClientRect();
             
             currentPos.x = rect.left - containerRect.left;
             currentPos.y = rect.top - containerRect.top;
             
-            // Actualizar transform inmediatamente
             element.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px)`;
             
-            // CONVERTIR A RECTÁNGULO INMEDIATAMENTE AL EMPEZAR A ARRASTRAR
             setItems((prev) => {
               const updated = prev.map((prevItem) =>
                 prevItem.id === item.id
@@ -51,17 +46,11 @@ export const useInteractJS = (
                   : prevItem
               );
               
-              setTimeout(() => {
-                const rectangleItems = updated.filter(item => item.isRectangle && item.dropZoneIndex !== undefined);
-                console.log("Elementos en zonas después de empezar drag:", rectangleItems.length);
-              }, 0);
-              
               return updated;
             });
           },
 
           move(event: any) {
-            
             currentPos.x += event.dx;
             currentPos.y += event.dy;
             element.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px)`;
@@ -77,23 +66,20 @@ export const useInteractJS = (
             let targetZoneIndex = -1;
             let isInLeftPanel = false;
 
-            // Verificar si está en el panel izquierdo
             const squareCenterX = targetRect.left + targetRect.width / 2;
             if (leftRect && squareCenterX >= leftRect.left && squareCenterX <= leftRect.right) {
               isInLeftPanel = true;
               foundZone = false;
               targetZoneIndex = -1;
             } else {
-              // Calcular occupiedZones en tiempo real excluyendo el elemento actual
               const currentOccupiedZones = items
                 .filter(prevItem => 
-                  prevItem.id !== item.id && // Excluir el elemento actual
+                  prevItem.id !== item.id &&
                   prevItem.isRectangle && 
                   prevItem.dropZoneIndex !== undefined
                 )
                 .map(prevItem => prevItem.dropZoneIndex as number);
 
-              // Solo buscar zonas si NO está en el panel izquierdo
               zones.forEach((zone) => {
                 const zoneIndexAttr = zone.getAttribute("data-zone-index");
                 if (!zoneIndexAttr) return;
@@ -137,12 +123,19 @@ export const useInteractJS = (
                     }
                   : prevItem
               );
-              
-              setTimeout(() => {
+
+              if (foundZone) {
                 const rectangleItems = updated.filter(item => item.isRectangle && item.dropZoneIndex !== undefined);
-                console.log("Elementos en zonas después de soltar:", rectangleItems.length);
-                console.log("Zonas ocupadas:", rectangleItems.map(item => item.dropZoneIndex));
-              }, 0);
+                const formObject = rectangleItems.reduce((acc, rectItem) => {
+                  if (rectItem.fields.label) {
+                    const key = rectItem.fields.label.toLowerCase().replaceAll(" ", "");
+                    acc[key] = rectItem.fields;
+                  }
+                  return acc;
+                }, {} as Record<string, any>);
+                
+                console.log("📋 Objeto Form al soltar:", formObject);
+              }
               
               return updated;
             });

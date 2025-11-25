@@ -24,12 +24,10 @@ export default function Preview() {
   try {
     const formStructure: LayoutFieldGroup[] = JSON.parse(decodeURIComponent(data));
 
-    // Convertir directamente al formato de FormTemplate
-// En el PreviewPage, modifica la conversión:
     const formRows: FormRow[] = formStructure.map((layoutGroup) => ({
     className: layoutGroup.className,
     fields: Object.entries(layoutGroup.fields).reduce((acc, [fieldKey, fieldConfig]) => {
-        // Si es un layout de 1 columna, forzar w-full
+       
         const isSingleColumn = layoutGroup.className.includes('grid-cols-1');
         
         acc[fieldKey] = {
@@ -53,51 +51,56 @@ export default function Preview() {
     };
 
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Formulario Generado</h1>
-              <p className="text-gray-600 mt-2">
-                {formRows.length} layout(s) • {formRows.reduce((total, row) => total + Object.keys(row.fields).length, 0)} campo(s)
-              </p>
-            </div>
-            <button
-              onClick={handleBack}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              ← Volver al Editor
-            </button>
-          </div>
-
-          {/* Formulario */}
-          <FormTemplate
-            formRows={formRows}
-            onSubmit={handleSubmit}
-            submitText="Enviar Formulario"
-            className="space-y-6"
-          />
-
-          {/* Información del JSON */}
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-            <h3 className="font-semibold text-gray-800 mb-2">Estructura JSON:</h3>
-            <pre className="text-sm bg-gray-800 text-green-400 p-4 rounded overflow-x-auto">
-              {JSON.stringify(formStructure, null, 2)}
-            </pre>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(formStructure, null, 2));
-                alert('JSON copiado al portapapeles!');
-              }}
-              className="mt-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm"
-            >
-              📋 Copiar JSON
-            </button>
-          </div>
+  <div className="min-h-screen bg-gray-50 py-8">
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Formulario Generado</h1>
+          <p className="text-gray-600 mt-2">
+            {formRows.length} layout(s) • {formRows.reduce((total, row) => total + Object.keys(row.fields).length, 0)} campo(s)
+          </p>
         </div>
+        <button
+          onClick={handleBack}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+        >
+          ← Volver al Editor
+        </button>
       </div>
-    );
+
+      {/* Formulario con estilos personalizados */}
+      <div className="custom-form-styles">
+        <FormTemplate
+          formRows={formRows}
+          onSubmit={handleSubmit}
+          submitText="Enviar Formulario"
+          className="space-y-6"
+        />
+      </div>
+
+      {/* Estilos CSS */}
+      <style jsx>{`
+        .custom-form-styles :global(input),
+        .custom-form-styles :global(select),
+        .custom-form-styles :global(textarea) {
+          width: 100% !important;
+          padding: 0.5rem;
+          border: 1px solid #d1d5db;
+          border-radius: 0.375rem;
+          box-sizing: border-box;
+        }
+        .custom-form-styles :global(input:focus),
+        .custom-form-styles :global(select:focus),
+        .custom-form-styles :global(textarea:focus) {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+      `}</style>
+    </div>
+  </div>
+);
 
   } catch (error) {
     return (

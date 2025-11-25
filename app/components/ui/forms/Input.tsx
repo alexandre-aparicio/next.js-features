@@ -49,6 +49,7 @@ const Input: React.FC<InputProps> = ({
         name={name}
         placeholder={placeholder}
         value={value}
+        className="w-full" 
         required={required || validate?.required}
         disabled={disabled}
         onChange={onChange}

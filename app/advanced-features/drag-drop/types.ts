@@ -27,3 +27,4 @@ export interface LayoutFieldGroup {
   className: string;
   fields: Record<string, FieldConfig & { className: string }>;
 }
+
