@@ -40,6 +40,15 @@ interface FormData {
   created_by: string;
 }
 
+interface PendingSubmission {
+  form_id: string;
+  user_id?: string;
+  session_id: string;
+  responses: { [key: string]: string };
+  timestamp: number;
+  retryCount: number;
+}
+
 export default function FormViewPage() {
   const params = useParams();
   const uuid = params.uuid as string;
@@ -49,12 +58,104 @@ export default function FormViewPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [formValues, setFormValues] = useState<{[key: string]: string}>({});
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Verificar conexión a internet y cargar submissions pendientes
+  useEffect(() => {
+    const checkOnlineStatus = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      
+      // Si se recupera la conexión, intentar enviar pendientes
+      if (online) {
+        processPendingSubmissions();
+      }
+    };
+
+    // Cargar submissions pendientes del localStorage
+    const loadPendingSubmissions = () => {
+      try {
+        const stored = localStorage.getItem(`pending_submissions_${uuid}`);
+        if (stored) {
+          setPendingSubmissions(JSON.parse(stored));
+        }
+      } catch (error) {
+        console.error('Error loading pending submissions:', error);
+      }
+    };
+
+    // Verificar inicialmente
+    checkOnlineStatus();
+    loadPendingSubmissions();
+
+    // Configurar event listeners
+    window.addEventListener('online', checkOnlineStatus);
+    window.addEventListener('offline', checkOnlineStatus);
+
+    // Verificar cada 30 segundos
+    const interval = setInterval(checkOnlineStatus, 30000);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('online', checkOnlineStatus);
+      window.removeEventListener('offline', checkOnlineStatus);
+      clearInterval(interval);
+    };
+  }, [uuid]);
 
   useEffect(() => {
     if (uuid) {
       fetchForm();
     }
   }, [uuid]);
+
+  // Procesar submissions pendientes cuando hay conexión
+  const processPendingSubmissions = async () => {
+    if (!isOnline || pendingSubmissions.length === 0) return;
+
+    setIsSubmitting(true);
+    
+    const successfulSubmissions: number[] = [];
+    const failedSubmissions: PendingSubmission[] = [];
+
+    for (let i = 0; i < pendingSubmissions.length; i++) {
+      const submission = pendingSubmissions[i];
+      
+      try {
+        const success = await submitToAPI(submission);
+        if (success) {
+          successfulSubmissions.push(i);
+        } else {
+          // Incrementar contador de reintentos
+          failedSubmissions.push({
+            ...submission,
+            retryCount: submission.retryCount + 1
+          });
+        }
+      } catch (error) {
+        console.error('Error processing submission:', error);
+        failedSubmissions.push({
+          ...submission,
+          retryCount: submission.retryCount + 1
+        });
+      }
+    }
+
+    // Actualizar localStorage
+    if (successfulSubmissions.length > 0 || failedSubmissions.length > 0) {
+      const updatedPending = failedSubmissions;
+      setPendingSubmissions(updatedPending);
+      localStorage.setItem(`pending_submissions_${uuid}`, JSON.stringify(updatedPending));
+      
+      if (successfulSubmissions.length > 0) {
+        console.log(`✅ Enviados ${successfulSubmissions.length} formularios pendientes`);
+      }
+    }
+
+    setIsSubmitting(false);
+  };
 
   const fetchForm = async () => {
     try {
@@ -99,15 +200,86 @@ export default function FormViewPage() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Función para enviar a la API
+  const submitToAPI = async (submission: PendingSubmission): Promise<boolean> => {
+    try {
+      const response = await fetch(`http://93.127.135.52:6011/api/responses/${submission.form_id}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submission),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Formulario enviado a API:', result);
+        return true;
+      } else {
+        console.error('❌ Error en API:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error enviando a API:', error);
+      return false;
+    }
+  };
+
+  // Función para guardar submission pendiente
+  const savePendingSubmission = (submission: PendingSubmission) => {
+    const newPendingSubmissions = [...pendingSubmissions, submission];
+    setPendingSubmissions(newPendingSubmissions);
+    
+    // Guardar en localStorage
+    localStorage.setItem(`pending_submissions_${uuid}`, JSON.stringify(newPendingSubmissions));
+    
+    console.log('📦 Formulario guardado para envío offline');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const filledFields = Object.values(formValues).filter(value => value.trim() !== '').length;
     const totalFields = Object.keys(formValues).length;
+
+    // Crear objeto de submission
+    const submission: PendingSubmission = {
+      form_id: uuid,
+      user_id: 'usuario-actual', // Puedes obtener esto de tu sistema de auth
+      session_id: `session-${Date.now()}`,
+      responses: formValues,
+      timestamp: Date.now(),
+      retryCount: 0
+    };
+
+    if (isOnline) {
+      // Intentar enviar directamente
+      setIsSubmitting(true);
+      try {
+        const success = await submitToAPI(submission);
+        
+        if (success) {
+          alert(`✅ Formulario enviado exitosamente!\nCampos llenados: ${filledFields}/${totalFields}`);
+          // Limpiar formulario después del envío exitoso
+          setFormValues({});
+        } else {
+          // Si falla el envío online, guardar como pendiente
+          savePendingSubmission(submission);
+          alert(`⚠️ Error al enviar. Formulario guardado para reintentar.\nCampos llenados: ${filledFields}/${totalFields}`);
+        }
+      } catch (error) {
+        // Si hay error, guardar como pendiente
+        savePendingSubmission(submission);
+        alert(`⚠️ Error de conexión. Formulario guardado para enviar luego.\nCampos llenados: ${filledFields}/${totalFields}`);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Guardar para envío offline
+      savePendingSubmission(submission);
+      alert(`📦 Formulario guardado para enviar cuando haya conexión.\nCampos llenados: ${filledFields}/${totalFields}\n\nPendientes: ${pendingSubmissions.length + 1}`);
+    }
     
-    alert(`✅ Formulario enviado!\nCampos llenados: ${filledFields}/${totalFields}\n\nDatos:\n${JSON.stringify(formValues, null, 2)}`);
-    
-    // Aquí puedes enviar los datos a tu API
     console.log('Datos del formulario:', formValues);
   };
 
@@ -135,6 +307,13 @@ export default function FormViewPage() {
         {config.label}
       </span>
     );
+  };
+
+  // Limpiar submissions pendientes (opcional)
+  const clearPendingSubmissions = () => {
+    setPendingSubmissions([]);
+    localStorage.removeItem(`pending_submissions_${uuid}`);
+    alert('🗑️ Formularios pendientes eliminados');
   };
 
   if (loading) {
@@ -195,6 +374,60 @@ export default function FormViewPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
+        {/* Indicador de conexión y estado */}
+        <div className={`mb-4 p-4 rounded-lg border-2 ${
+          isOnline 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className={`w-3 h-3 rounded-full mr-3 ${
+                isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+              }`}></div>
+              <span className="font-medium">
+                {isOnline ? '✅ Conectado a Internet' : '⚠️ Sin conexión a Internet'}
+              </span>
+            </div>
+            <div className="text-sm">
+              {isOnline 
+                ? `Pendientes: ${pendingSubmissions.length}`
+                : 'Los formularios se guardarán localmente'
+              }
+            </div>
+          </div>
+          
+          {/* Información de submissions pendientes */}
+          {pendingSubmissions.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-current border-opacity-20">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">
+                  📦 {pendingSubmissions.length} formulario{pendingSubmissions.length !== 1 ? 's' : ''} pendiente{pendingSubmissions.length !== 1 ? 's' : ''}
+                </span>
+                {isOnline && !isSubmitting && (
+                  <button
+                    onClick={processPendingSubmissions}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium"
+                  >
+                    Reintentar Envío
+                  </button>
+                )}
+                {isOnline && isSubmitting && (
+                  <span className="text-xs">Enviando...</span>
+                )}
+                <button
+                  onClick={clearPendingSubmissions}
+                  className="text-red-500 hover:text-red-700 text-xs"
+                  title="Eliminar pendientes"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Resto del código del formulario se mantiene igual */}
         {/* Header del formulario */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-start mb-4">
@@ -219,7 +452,7 @@ export default function FormViewPage() {
                   ← Volver
                 </button>
                 <button
-                  onClick={() => window.open('/advanced-features/drag-drop-3/forms', '_self')}
+                  onClick={() => window.open('/advanced-features/drag-drop-3/forms-list', '_self')}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
                 >
                   📋 Todos los Forms
@@ -344,9 +577,21 @@ export default function FormViewPage() {
             
             <button
               type="submit"
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-colors text-lg"
+              disabled={isSubmitting}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors text-lg ${
+                isSubmitting
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  : isOnline
+                  ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
+                  : 'bg-orange-500 hover:bg-orange-600 text-white cursor-pointer'
+              }`}
             >
-              📨 Enviar Formulario
+              {isSubmitting 
+                ? '⏳ Enviando...' 
+                : isOnline 
+                ? '📨 Enviar Formulario' 
+                : '📦 Guardar para Enviar'
+              }
             </button>
           </div>
         </form>
