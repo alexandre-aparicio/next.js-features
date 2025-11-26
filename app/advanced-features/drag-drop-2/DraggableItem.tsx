@@ -1,23 +1,16 @@
 import { DraggableItem as DraggableItemType } from "./types";
-import { getColorById } from "./utils";
 
 interface DraggableItemProps {
   item: DraggableItemType;
   setItemRef: (element: HTMLDivElement | null, item: DraggableItemType) => void;
   setItems: React.Dispatch<React.SetStateAction<DraggableItemType[]>>;
+  onDragStart: () => void; // Nueva prop añadida
 }
 
-export const DraggableItem = ({ item, setItemRef, setItems }: DraggableItemProps) => {
+export const DraggableItem = ({ item, setItemRef, setItems, onDragStart }: DraggableItemProps) => {
   
   const getCurrentColor = () => {
     return item.customColor || "#eeeeee"; 
-  };
-
-  // Función para eliminar el item
-  const handleDelete = () => {
-    setItems((prev: DraggableItemType[]) => 
-      prev.filter(i => i.id !== item.id)
-    );
   };
 
   return (
@@ -33,14 +26,18 @@ export const DraggableItem = ({ item, setItemRef, setItems }: DraggableItemProps
         transform: `translate(${item.x}px, ${item.y}px)`,
         backgroundColor: getCurrentColor(),
       }}
+      onDragStart={onDragStart} // Añadido aquí
     >
+      <button
+        onClick={() => {
+          setItems((prev) => prev.filter((i) => i.id !== item.id));
+        }}
+        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center cursor-pointer"
+      >
+        ✕
+      </button>
       {!item.isRectangle ? (
-        <ItemFields 
-          item={item} 
-          setItems={setItems} 
-          getCurrentColor={getCurrentColor} 
-          onDelete={handleDelete}
-        />
+        <ItemFields item={item} setItems={setItems} getCurrentColor={getCurrentColor} />
       ) : (
         <div className="text-white font-bold text-sm">
           {item.fields.label
@@ -52,17 +49,7 @@ export const DraggableItem = ({ item, setItemRef, setItems }: DraggableItemProps
   );
 };
 
-const ItemFields = ({ 
-  item, 
-  setItems, 
-  getCurrentColor, 
-  onDelete 
-}: { 
-  item: DraggableItemType; 
-  setItems: any; 
-  getCurrentColor: () => string;
-  onDelete: () => void;
-}) => {
+const ItemFields = ({ item, setItems, getCurrentColor }: { item: DraggableItemType; setItems: any; getCurrentColor: () => string }) => {
   // Array de colores disponibles (incluyendo gris al principio)
   const availableColors = [
     "#eeeeee", // Gris - color por defecto
@@ -88,32 +75,21 @@ const ItemFields = ({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* FILA 1: Selector de colores y botón eliminar */}
-      <div className="flex justify-between items-center">
-        <div className="flex gap-1">
-          {availableColors.map((color) => (
-            <button
-              key={color}
-              onClick={() => handleColorChange(color)}
-              className={`w-5 h-5 transition-all ${
-                currentColor === color 
-                  ? 'border-white scale-110 shadow-md' 
-                  : 'border-gray-300 hover:scale-105 hover:border-gray-400'
-              }`}
-              style={{ backgroundColor: color }}
-              title={color === "#9CA3AF" ? "Color por defecto (gris)" : `Seleccionar color ${color}`}
-            />
-          ))}
-        </div>
-        
-        {/* Botón eliminar */}
-        <button
-          onClick={onDelete}
-          className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-600 transition-colors"
-          title="Eliminar elemento"
-        >
-          ×
-        </button>
+      {/* FILA 1: Selector de colores */}
+      <div className="flex gap-1">
+        {availableColors.map((color) => (
+          <button
+            key={color}
+            onClick={() => handleColorChange(color)}
+            className={`w-5 h-5 transition-all ${
+              currentColor === color 
+                ? 'border-white scale-110 shadow-md' 
+                : 'border-gray-300 hover:scale-105 hover:border-gray-400'
+            }`}
+            style={{ backgroundColor: color }}
+            title={color === "#eeeeee" ? "Color por defecto (gris)" : `Seleccionar color ${color}`}
+          />
+        ))}
       </div>
 
       {/* FILA 2: Campos del formulario */}

@@ -6,10 +6,13 @@ export const useInteractJS = (
   occupiedZones: number[],
   containerRef: React.RefObject<HTMLDivElement | null>,
   setItems: React.Dispatch<React.SetStateAction<DraggableItem[]>>,
+  setDraggedItemId: React.Dispatch<React.SetStateAction<number | null>>
 ) => {
   useEffect(() => {
     const interact = (window as any).interact;
     if (!interact || !containerRef.current) return;
+
+    console.log("🔄 useInteractJS inicializado con", items.length, "items");
 
     items.forEach((item) => {
       const element = item.ref.current;
@@ -23,8 +26,13 @@ export const useInteractJS = (
       interact(element).draggable({
         listeners: {
           start(event: any) {
+            console.log("🟢 INICIANDO DRAG - useInteractJS:", {
+              itemId: item.id,
+              fields: item.fields
+            });
             element.style.zIndex = "1000";
             element.style.transition = "none";
+            setDraggedItemId(item.id);
           },
 
           move(event: any) {
@@ -34,9 +42,12 @@ export const useInteractJS = (
           },
 
           end(event: any) {
+            console.log("🔴 FINALIZANDO DRAG - useInteractJS:", {
+              itemId: item.id
+            });
             element.style.zIndex = "";
             element.style.transition = "all 0.3s ease";
-
+            
             const targetRect = element.getBoundingClientRect();
             const containerRect = containerRef.current!.getBoundingClientRect();
 
@@ -90,5 +101,5 @@ export const useInteractJS = (
         },
       });
     });
-  }, [items, occupiedZones, setItems, containerRef]);
+  }, [items, occupiedZones, setItems, containerRef, setDraggedItemId]);
 };

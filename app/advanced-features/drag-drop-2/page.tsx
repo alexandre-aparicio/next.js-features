@@ -14,22 +14,12 @@ const DragDropPage = () => {
     { id: 1, name: "Página 1", items: [] }
   ]);
   const [activePage, setActivePage] = useState<number>(1);
+  const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
 
   // Calcular zonas ocupadas para la página activa
   const occupiedZones = items
     .filter(item => item.isRectangle && item.dropZoneIndex !== undefined && item.pageId === activePage)
     .map(item => item.dropZoneIndex as number);
-
-  // Verificar si hay elementos sin colocar en el panel izquierdo para la página activa
-  const hasUnplacedItems = items.some(item => 
-    !item.isRectangle && item.pageId === activePage
-  );
-
-  // Verificar si el espacio derecho está completamente ocupado
-  const isRightPanelFull = occupiedZones.length === 1; // Ya que solo hay 1 espacio
-
-  // Determinar si se puede crear nueva página
-  const canCreateNewPage = !hasUnplacedItems && isRightPanelFull;
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -39,7 +29,7 @@ const DragDropPage = () => {
     return () => { document.head.removeChild(script); };
   }, []);
 
-  useInteractJS(items, occupiedZones, containerRef, setItems);
+  useInteractJS(items, occupiedZones, containerRef, setItems, setDraggedItemId);
 
   const createNewItem = () => {
     const newItem: DraggableItem = {
@@ -59,15 +49,32 @@ const DragDropPage = () => {
     if (element) item.ref.current = element;
   };
 
-  // Función para manejar drop en una zona específica
-  const handleDropInZone = (zoneIndex: number) => {
+  // Función para manejar drop en una zona específica - CORREGIDA
+  const handleDropInZone = (zoneIndex: number, draggedItem: DraggableItem | null) => {
+    console.log("🔄 handleDropInZone llamado:", { zoneIndex, draggedItemId: draggedItem?.id });
+    
     if (occupiedZones.includes(zoneIndex)) {
+      console.log("❌ Zona ya ocupada");
+      return;
+    }
+
+    if (!draggedItem) {
+      console.log("❌ No hay item arrastrado");
       return;
     }
 
     setItems(prevItems => 
       prevItems.map(item => {
-        if (item.isRectangle && item.dropZoneIndex === undefined && item.pageId === activePage) {
+        if (item.id === draggedItem.id) {
+          console.log("📋 FORMULARIO PEGADO - DragDropPage:", {
+            itemId: item.id,
+            pageId: activePage,
+            zone: zoneIndex,
+            fields: item.fields,
+            customColor: item.customColor,
+            timestamp: new Date().toISOString()
+          });
+
           return {
             ...item,
             isRectangle: true,
@@ -80,6 +87,8 @@ const DragDropPage = () => {
         return item;
       })
     );
+
+    setDraggedItemId(null);
   };
 
   // Función para liberar un item de su zona
@@ -101,8 +110,6 @@ const DragDropPage = () => {
 
   // Añadir nueva página
   const addNewPage = () => {
-    if (!canCreateNewPage) return;
-    
     const newPageId = Math.max(...pages.map(p => p.id)) + 1;
     const newPage: FormPage = {
       id: newPageId,
@@ -113,16 +120,25 @@ const DragDropPage = () => {
     setActivePage(newPageId);
   };
 
+  const deletePage = (pageId: number) => {
+    setItems(prev => prev.filter(item => item.pageId !== pageId));
+    setPages(prev => {
+      const newPages = prev.filter(p => p.id !== pageId);
+      if (newPages.length === 0) {
+        const newPage = { id: 1, name: "Página 1", items: [] };
+        setActivePage(1);
+        return [newPage];
+      }
+      if (activePage === pageId) {
+        setActivePage(newPages[0].id);
+      }
+      return newPages;
+    });
+  };
+
   // Cambiar página activa
   const handlePageChange = (pageId: number) => {
     setActivePage(pageId);
-  };
-
-  // Obtener mensaje de estado para el botón
-  const getNewPageButtonStatus = () => {
-    if (hasUnplacedItems) return "Hay elementos sin colocar en el panel izquierdo";
-    if (!isRightPanelFull) return "El espacio derecho no está completamente ocupado";
-    return "Crear nueva página";
   };
 
   return (
@@ -137,21 +153,14 @@ const DragDropPage = () => {
           </button>
           <button
             onClick={addNewPage}
-            disabled={!canCreateNewPage}
-            className={`px-4 py-2 rounded-lg shadow transition-colors ${
-              canCreateNewPage
-                ? "bg-blue-500 hover:bg-blue-600 text-white"
-                : "bg-gray-400 text-gray-200 cursor-not-allowed"
-            }`}
-            title={getNewPageButtonStatus()}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow transition-colors"
           >
             + Nueva Página
           </button>
         </div>
         <span className="text-gray-600 text-sm">
           {items.length} elemento(s) | {occupiedZones.length}/1 espacio ocupado | Página {activePage}
-          {hasUnplacedItems && " | ⚠️ Elementos sin colocar"}
-          {!isRightPanelFull && " | ⚠️ Espacio derecho incompleto"}
+          {draggedItemId && " | 🎯 Arrastrando elemento"}
         </span>
       </div>
 
@@ -165,9 +174,18 @@ const DragDropPage = () => {
               activePage === page.id
                 ? "border-blue-500 text-blue-600 font-semibold"
                 : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            } relative`}
           >
             {page.name}
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                deletePage(page.id);
+              }}
+              className="absolute -right-2 -top-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center cursor-pointer"
+            >
+              ✕
+            </span>
           </button>
         ))}
       </div>
@@ -180,6 +198,8 @@ const DragDropPage = () => {
           onDrop={handleDropInZone}
           onRemoveFromZone={handleRemoveFromZone}
           activePage={activePage}
+          draggedItemId={draggedItemId}
+          items={items}
         />
         
         {items
