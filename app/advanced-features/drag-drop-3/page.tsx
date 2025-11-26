@@ -14,6 +14,8 @@ interface Square {
   position: Position;
   isUsed: boolean;
   inputValue: string;
+  label: string;        
+  placeholder: string;  
 }
 
 interface Tab {
@@ -24,27 +26,39 @@ interface Tab {
 
 interface Row {
   id: string;
-  spaces: number; // 1, 2 o 3 espacios
+  spaces: number;
 }
 
 interface OccupiedSpaces {
-  [key: string]: string[]; // clave: "tabId-rowId", valor: array de squareIds
+  [key: string]: string[];
 }
 
-interface SquareValues {
-  [key: string]: { // clave: "valor_cuadradoId"
-    valor: string;
-  };
+interface FormStructure {
+  pagina: string;
+  filas: {
+    className: string;
+    fields: {
+      [key: string]: {
+        label: string;
+        type: string;
+        placeholder: string;
+        className: string;
+        validate?: {
+          required?: boolean;
+          min4?: boolean;
+        };
+      };
+    };
+  }[];
 }
 
 interface LogEntry {
   tabId: string;
-  spaces: { [key: string]: string[] }; // "rowId": [squareId1, squareId2, ...]
+  spaces: { [key: string]: string[] };
   squareIds: string[];
 }
 
 export default function Home() {
-  // Estados para los cuadrados y pestañas
   const [squares, setSquares] = useState<Square[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([{ 
     id: 'default', 
@@ -53,57 +67,316 @@ export default function Home() {
   }]);
   const [activeTab, setActiveTab] = useState<string>('default');
   const [occupiedSpaces, setOccupiedSpaces] = useState<OccupiedSpaces>({});
-  const [squareValues, setSquareValues] = useState<SquareValues>({});
+  const [formStructure, setFormStructure] = useState<FormStructure[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  // Referencias para drag and drop
   const dragItem = useRef<string | null>(null);
 
-  // Generar ID aleatorio de 4 dígitos
   const generateId = (): string => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
-  // Crear nuevo cuadrado
   const createSquare = () => {
     const newId = generateId();
     const newSquare: Square = {
       id: newId,
       position: { x: 50, y: 50 + squares.length * 60 },
       isUsed: false,
-      inputValue: ''
+      inputValue: 'text',
+      label: '',
+      placeholder: ''
     };
     setSquares([...squares, newSquare]);
   };
 
-  // Actualizar valor del input del cuadrado
-  const updateSquareInput = useCallback((squareId: string, value: string) => {
-    setSquares(squares.map(square => 
-      square.id === squareId ? { ...square, inputValue: value } : square
-    ));
+  const saveToSessionStorage = (data: FormStructure[]) => {
+  sessionStorage.setItem('formJsonData', JSON.stringify(data));
+};
 
-    // Actualizar el array de valores
-    setSquareValues(prev => {
-      const newValues = { ...prev };
+const generateAndSaveFormJson = () => {
+  // Verificar si hay espacios vacíos y si hay al menos un campo
+  let hasEmptySpaces = false;
+  let hasFields = false;
+  
+  tabs.forEach(tab => {
+    tab.rows.forEach(row => {
+      const spaceKey = `${tab.id}-${row.id}`;
+      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
       
-      // Eliminar todas las entradas anteriores de este cuadrado
-      Object.keys(newValues).forEach(key => {
-        if (key.endsWith(`_${squareId}`)) {
-          delete newValues[key];
+      const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
+      const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
+      
+      if (emptySpaces > 0) {
+        hasEmptySpaces = true;
+        console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
+      }
+      
+      if (filledSpaces > 0) {
+        hasFields = true;
+      }
+    });
+  });
+  
+  if (hasEmptySpaces) {
+    alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
+    return;
+  }
+  
+  if (!hasFields) {
+    alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
+    return;
+  }
+  
+  // Generar el JSON actualizado en el momento
+  const currentFormStructure: FormStructure[] = [];
+  
+  tabs.forEach(tab => {
+    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+    const filas: any[] = [];
+    
+    tab.rows.forEach(row => {
+      const spaceKey = `${tab.id}-${row.id}`;
+      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+      
+      const fields: { [key: string]: any } = {};
+      let rowHasFields = false;
+      
+      rowSpaces.forEach((squareId, index) => {
+        if (squareId && squareId !== '') {
+          const square = squares.find(s => s.id === squareId);
+          if (square) {
+            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+            fields[fieldName] = {
+              label: square.label,
+              type: square.inputValue,
+              placeholder: square.placeholder,
+              className: "col-span-1",
+              validate: { required: true }
+            };
+            rowHasFields = true;
+          }
         }
       });
       
-      // Si el valor no está vacío, crear nueva entrada
-      if (value.trim() !== '') {
-        const key = `${value}_${squareId}`;
-        newValues[key] = { valor: value };
+      if (rowHasFields) {
+        let className = "";
+        switch(row.spaces) {
+          case 1:
+            className = "grid grid-cols-1 gap-4";
+            break;
+          case 2:
+            className = "grid grid-cols-2 gap-4";
+            break;
+          case 3:
+            className = "grid grid-cols-3 gap-4";
+            break;
+        }
+        
+        filas.push({
+          className,
+          fields
+        });
+      }
+    });
+    
+    if (filas.length > 0) {
+      currentFormStructure.push({
+        pagina,
+        filas
+      });
+    }
+  });
+
+  saveToSessionStorage(currentFormStructure);
+  
+  console.log('🎯 JSON del Formulario:');
+  console.log(JSON.stringify(currentFormStructure, null, 2));
+
+  window.location.href = '/advanced-features/drag-drop-3/preview';
+};
+
+const updateFormStructure = useCallback(() => {
+  const newFormStructure: FormStructure[] = [];
+  
+  tabs.forEach(tab => {
+    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+    const filas: any[] = [];
+    
+    tab.rows.forEach(row => {
+      const spaceKey = `${tab.id}-${row.id}`;
+      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+      
+      const fields: { [key: string]: any } = {};
+      let hasFields = false;
+      
+      rowSpaces.forEach((squareId, index) => {
+        if (squareId && squareId !== '') {
+          const square = squares.find(s => s.id === squareId);
+          if (square) {
+            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+            fields[fieldName] = {
+              label: square.label,
+              type: square.inputValue,
+              placeholder: square.placeholder,
+              className: "col-span-1",
+              validate: { required: true }
+            };
+            hasFields = true;
+          }
+        }
+      });
+      
+      if (hasFields) {
+        let className = "";
+        switch(row.spaces) {
+          case 1:
+            className = "grid grid-cols-1 gap-4";
+            break;
+          case 2:
+            className = "grid grid-cols-2 gap-4";
+            break;
+          case 3:
+            className = "grid grid-cols-3 gap-4";
+            break;
+        }
+        
+        filas.push({
+          className,
+          fields
+        });
+      }
+    });
+    
+    if (filas.length > 0) {
+      newFormStructure.push({
+        pagina,
+        filas
+      });
+    }
+  });
+  
+  setFormStructure(newFormStructure);
+}, [tabs, occupiedSpaces, squares]);
+
+const generateFormJson = () => {
+  let hasEmptySpaces = false;
+  let hasFields = false;
+  
+  tabs.forEach(tab => {
+    tab.rows.forEach(row => {
+      const spaceKey = `${tab.id}-${row.id}`;
+      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+      
+      const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
+      const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
+      
+      if (emptySpaces > 0) {
+        hasEmptySpaces = true;
+        console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
       }
       
-      return newValues;
+      if (filledSpaces > 0) {
+        hasFields = true;
+      }
     });
-  }, [squares]);
+  });
+  
+  if (hasEmptySpaces) {
+    alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
+    return;
+  }
+  
+  if (!hasFields) {
+    alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
+    return;
+  }
+  
+  // Generar el JSON actualizado en el momento
+  const currentFormStructure: FormStructure[] = [];
+  
+  tabs.forEach(tab => {
+    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+    const filas: any[] = [];
+    
+    tab.rows.forEach(row => {
+      const spaceKey = `${tab.id}-${row.id}`;
+      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+      
+      const fields: { [key: string]: any } = {};
+      let rowHasFields = false;
+      
+      rowSpaces.forEach((squareId, index) => {
+        if (squareId && squareId !== '') {
+          const square = squares.find(s => s.id === squareId);
+          if (square) {
+            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+            fields[fieldName] = {
+              label: square.label,
+              type: square.inputValue,
+              placeholder: square.placeholder,
+              className: "col-span-1",
+              validate: { required: true }
+            };
+            rowHasFields = true;
+          }
+        }
+      });
+      
+      if (rowHasFields) {
+        let className = "";
+        switch(row.spaces) {
+          case 1:
+            className = "grid grid-cols-1 gap-4";
+            break;
+          case 2:
+            className = "grid grid-cols-2 gap-4";
+            break;
+          case 3:
+            className = "grid grid-cols-3 gap-4";
+            break;
+        }
+        
+        filas.push({
+          className,
+          fields
+        });
+      }
+    });
+    
+    if (filas.length > 0) {
+      currentFormStructure.push({
+        pagina,
+        filas
+      });
+    }
+  });
+  
+  console.log('🎯 JSON del Formulario:');
+  console.log(JSON.stringify(currentFormStructure, null, 2));
+  
+};
 
-  // Crear nueva pestaña
+  const updateSquareInput = useCallback((squareId: string, value: string) => {
+    setSquares(prev => prev.map(square => 
+      square.id === squareId ? { ...square, inputValue: value } : square
+    ));
+    updateFormStructure();
+  }, [updateFormStructure]);
+
+  const updateSquareLabel = useCallback((squareId: string, value: string) => {
+    setSquares(prev => prev.map(square => 
+      square.id === squareId ? { ...square, label: value } : square
+    ));
+    updateFormStructure();
+  }, [updateFormStructure]);
+
+  const updateSquarePlaceholder = useCallback((squareId: string, value: string) => {
+    setSquares(prev => prev.map(square => 
+      square.id === squareId ? { ...square, placeholder: value } : square
+    ));
+    updateFormStructure();
+  }, [updateFormStructure]);
+
   const createTab = () => {
     const newId = generateId();
     const newTab: Tab = {
@@ -113,9 +386,11 @@ export default function Home() {
     };
     setTabs([...tabs, newTab]);
     setActiveTab(newId);
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Agregar fila a pestaña activa
   const addRow = (spaces: number) => {
     const newRow: Row = {
       id: generateId(),
@@ -127,11 +402,12 @@ export default function Home() {
         ? { ...tab, rows: [...tab.rows, newRow] }
         : tab
     ));
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Eliminar fila
   const deleteRow = (rowId: string) => {
-    // Liberar cuadrados ocupados en esta fila
     const squaresToFree: string[] = [];
     const newOccupiedSpaces = { ...occupiedSpaces };
     
@@ -143,30 +419,28 @@ export default function Home() {
       }
     });
     
-    // Marcar cuadrados como no usados
-    setSquares(squares.map(square => 
+    setSquares(prev => prev.map(square => 
       squaresToFree.includes(square.id) ? { ...square, isUsed: false } : square
     ));
     
     setOccupiedSpaces(newOccupiedSpaces);
-    
-    // Eliminar fila
-    setTabs(tabs.map(tab => 
+    setTabs(prev => prev.map(tab => 
       tab.id === activeTab 
         ? { ...tab, rows: tab.rows.filter(row => row.id !== rowId) }
         : tab
     ));
     
     generateLog(newOccupiedSpaces);
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Eliminar pestaña
   const deleteTab = (tabId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
     if (tabs.length <= 1) return;
     
-    // Liberar todos los cuadrados ocupados en esta pestaña
     const squaresToFree: string[] = [];
     const newOccupiedSpaces = { ...occupiedSpaces };
     
@@ -178,7 +452,7 @@ export default function Home() {
       }
     });
     
-    setSquares(squares.map(square => 
+    setSquares(prev => prev.map(square => 
       squaresToFree.includes(square.id) ? { ...square, isUsed: false } : square
     ));
     
@@ -192,9 +466,11 @@ export default function Home() {
     }
     
     generateLog(newOccupiedSpaces);
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Eliminar cuadrado del panel izquierdo
   const deleteSquare = (squareId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -207,23 +483,14 @@ export default function Home() {
     });
     
     setOccupiedSpaces(newOccupiedSpaces);
-    setSquares(squares.filter(square => square.id !== squareId));
-    
-    // Eliminar del array de valores
-    setSquareValues(prev => {
-      const newValues = { ...prev };
-      Object.keys(newValues).forEach(key => {
-        if (key.endsWith(`_${squareId}`)) {
-          delete newValues[key];
-        }
-      });
-      return newValues;
-    });
+    setSquares(prev => prev.filter(square => square.id !== squareId));
     
     generateLog(newOccupiedSpaces);
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Manejar inicio de arrastre
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, squareId: string) => {
     const square = squares.find(s => s.id === squareId);
     if (square?.isUsed) {
@@ -236,17 +503,14 @@ export default function Home() {
     e.currentTarget.classList.add('opacity-40');
   };
 
-  // Manejar arrastre sobre un elemento
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
 
-  // Manejar fin de arrastre
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     e.currentTarget.classList.remove('opacity-40');
   };
 
-  // Manejar soltar en un espacio
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, tabId: string, rowId: string, spaceIndex: number) => {
     e.preventDefault();
     const squareId = dragItem.current;
@@ -256,61 +520,64 @@ export default function Home() {
     const square = squares.find(s => s.id === squareId);
     if (!square || square.isUsed) return;
     
-    // Verificar si ya existe un array para esta fila
     const spaceKey = `${tabId}-${rowId}`;
     const currentSpaces = occupiedSpaces[spaceKey] || [];
     
-    // Verificar si el espacio ya está ocupado
     if (currentSpaces[spaceIndex]) {
       return;
     }
     
-    // Actualizar el array de espacios
     const newSpaces = [...currentSpaces];
     newSpaces[spaceIndex] = squareId;
     
-    // Actualizar espacios ocupados y marcar cuadrado como usado
     const newOccupiedSpaces: OccupiedSpaces = {
       ...occupiedSpaces,
       [spaceKey]: newSpaces
     };
     
     setOccupiedSpaces(newOccupiedSpaces);
-    setSquares(squares.map(square => 
+    setSquares(prev => prev.map(square => 
       square.id === squareId ? { ...square, isUsed: true } : square
     ));
+    
+    // Actualizar estructura inmediatamente
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
     
     generateLog(newOccupiedSpaces);
     e.currentTarget.classList.remove('opacity-40');
   };
 
-  // Remover cuadrado de un espacio
   const removeSquareFromSpace = (tabId: string, rowId: string, spaceIndex: number) => {
     const spaceKey = `${tabId}-${rowId}`;
     const currentSpaces = occupiedSpaces[spaceKey] || [];
     
     const squareId = currentSpaces[spaceIndex];
     const newSpaces = [...currentSpaces];
-    newSpaces[spaceIndex] = ''; // Vaciar el espacio
+    newSpaces[spaceIndex] = '';
     
     const newOccupiedSpaces = { ...occupiedSpaces };
     
-    // Si todos los espacios están vacíos, eliminar la key
     if (newSpaces.every(space => !space)) {
       delete newOccupiedSpaces[spaceKey];
     } else {
       newOccupiedSpaces[spaceKey] = newSpaces;
     }
     
-    setSquares(squares.map(square => 
+    setSquares(prev => prev.map(square => 
       square.id === squareId ? { ...square, isUsed: false } : square
     ));
     
     setOccupiedSpaces(newOccupiedSpaces);
     generateLog(newOccupiedSpaces);
+    
+    // Actualizar estructura inmediatamente
+    setTimeout(() => {
+      updateFormStructure();
+    }, 0);
   };
 
-  // Generar log con información de espacios ocupados
   const generateLog = (spaces: OccupiedSpaces) => {
     const tabData: { [key: string]: LogEntry } = {};
     
@@ -339,7 +606,6 @@ export default function Home() {
     console.log('Array acumulativo de espacios:', logArray);
   };
 
-  // Filtrar cuadrados no usados para mostrar en el panel izquierdo
   const availableSquares = squares.filter(square => !square.isUsed);
 
   return (
@@ -350,7 +616,6 @@ export default function Home() {
         </h1>
         
         <div className="flex gap-6 mb-8">
-          {/* Panel izquierdo */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Panel Izquierdo</h2>
             <button 
@@ -364,21 +629,37 @@ export default function Home() {
               {availableSquares.map((square, index) => (
                 <div
                   key={square.id}
-                  className="absolute w-48 h-20 flex flex-col items-center justify-center rounded-lg cursor-move select-none shadow-md transition-all bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm p-2"
+                  className="absolute w-48 h-28 flex flex-col items-center justify-center rounded-lg cursor-move select-none shadow-md transition-all bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm p-2"
                   draggable={true}
                   onDragStart={(e) => handleDragStart(e, square.id)}
                   onDragEnd={handleDragEnd}
                   style={{
                     left: `${square.position.x}px`,
-                    top: `${50 + index * 80}px`
+                    top: `${50 + index * 100}px`
                   }}
                 >
-                  <span className="mb-1">{square.id}</span>
+                  <span className="mb-1 text-xs">{square.id}</span>
                   <input
                     type="text"
                     value={square.inputValue}
                     onChange={(e) => updateSquareInput(square.id, e.target.value)}
-                    placeholder="Escribe algo..."
+                    placeholder="Type (text, email, etc)..."
+                    className="w-full px-2 py-1 text-xs text-black rounded border-none mb-1"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <input
+                    type="text"
+                    value={square.label}
+                    onChange={(e) => updateSquareLabel(square.id, e.target.value)}
+                    placeholder="Label..."
+                    className="w-full px-2 py-1 text-xs text-black rounded border-none mb-1"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <input
+                    type="text"
+                    value={square.placeholder}
+                    onChange={(e) => updateSquarePlaceholder(square.id, e.target.value)}
+                    placeholder="Placeholder..."
                     className="w-full px-2 py-1 text-xs text-black rounded border-none"
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -401,7 +682,6 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Panel derecho */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Panel Derecho</h2>
             <div className="flex gap-2 mb-4 flex-wrap">
@@ -502,13 +782,15 @@ export default function Home() {
                                   >
                                     {squareId ? (
                                       <div className="bg-blue-100 border border-blue-300 rounded-md px-3 py-2 w-full flex flex-col items-center justify-between">
-                                        <span className="font-mono font-bold text-blue-700 mb-1">
+                                        <span className="font-mono font-bold text-blue-700 mb-1 text-xs">
                                           {squareId}
                                         </span>
-                                        {square?.inputValue && (
-                                          <span className="text-xs text-green-600 font-medium">
-                                            {square.inputValue}
-                                          </span>
+                                        {square && (
+                                          <div className="text-xs text-center">
+                                            <div className="text-green-600 font-medium">Type: {square.inputValue}</div>
+                                            <div className="text-gray-600">Label: {square.label}</div>
+                                            <div className="text-gray-500">Placeholder: {square.placeholder}</div>
+                                          </div>
                                         )}
                                         <button
                                           className="bg-red-500 hover:bg-red-600 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center transition-colors mt-1"
@@ -537,15 +819,25 @@ export default function Home() {
           </div>
         </div>
         
-        {/* Array de Valores */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-3">
-            Array de Valores de Cuadrados
-          </h3>
-          <pre className="bg-gray-100 p-4 rounded-lg border border-gray-200 max-h-60 overflow-y-auto text-sm">
-            {JSON.stringify(squareValues, null, 2)}
-          </pre>
-        </div>
+  <h3 className="text-lg font-semibold text-gray-700 mb-3">
+    Generar JSON del Formulario
+  </h3>
+  <div className="flex gap-2">
+    <button 
+      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+      onClick={() => generateFormJson()}
+    >
+      Mostrar JSON en Consola
+    </button>
+    <button 
+      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+      onClick={() => generateAndSaveFormJson()}
+    >
+      Ver Preview
+    </button>
+  </div>
+</div>
       </main>
     </div>
   );
