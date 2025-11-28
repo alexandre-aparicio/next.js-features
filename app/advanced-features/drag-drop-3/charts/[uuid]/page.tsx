@@ -27,6 +27,7 @@ export default function FormStatsPage() {
   const {
     loading,
     error,
+    responses,
     selectedField,
     formFields,
     xAxisField,
@@ -108,6 +109,37 @@ export default function FormStatsPage() {
     generateBivariateChart(renderOverlapped, disposeOverlapped, 'Overlapped Chart');
   }, [xAxisField, yAxisField, generateBivariateChart]);
 
+  // Función para manejar apertura del modal con gráfico
+  const handleOpenModalChart = (field: string) => {
+    console.log('Abriendo modal para campo:', field);
+    
+    // Generar datos para el campo seleccionado
+    const counts: Record<string, number> = {};
+    let total = 0;
+
+    responses.forEach((r) => {
+      const value = r.responses[field];
+      if (value?.trim()) {
+        counts[value] = (counts[value] || 0) + 1;
+        total++;
+      }
+    });
+
+    const data = Object.entries(counts)
+      .map(([category, value]) => ({
+        category: category.length > 20 ? category.substring(0, 20) + '...' : category,
+        fullCategory: category,
+        value,
+        realPercent: total > 0 ? ((value / total) * 100).toFixed(2) : '0.00'
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    // Renderizar el gráfico en el modal después de un pequeño delay
+    setTimeout(() => {
+      renderBars(data);
+    }, 150);
+  };
+
   if (loading) return <div className="p-6">Cargando estadísticas...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
@@ -125,6 +157,7 @@ export default function FormStatsPage() {
             formFields={formFields}
             selectedField={selectedField}
             onSelectField={setSelectedField}
+            onOpenModal={handleOpenModalChart}
           />
         )}
 
@@ -136,7 +169,9 @@ export default function FormStatsPage() {
                 <div id="chartdiv" style={{ width: '100%', height: '320px' }}></div>
               </div>
               <div className="flex items-center justify-center">
-                <div id="chartdiv2" style={{ width: '100%', height: '320px' }}></div>
+                <div className="text-gray-400 text-sm p-4 border-2 border-dashed rounded">
+                  Haz clic en el menú ⋮ para ver el gráfico de barras en modal
+                </div>
               </div>
               <div className="flex items-center justify-center">
                 <div id="treemapdiv" style={{ width: '100%', height: '320px' }}></div>
