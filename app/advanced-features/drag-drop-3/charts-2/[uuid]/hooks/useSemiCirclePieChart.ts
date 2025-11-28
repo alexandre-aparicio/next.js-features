@@ -1,9 +1,8 @@
-// /lib/hooks/useDonutChart.ts
 import { useRef, useEffect } from "react";
 
 declare const window: any;
 
-export function useDonutChart() {
+export function useSemiCirclePieChart() {
   const rootRef = useRef<any>(null);
 
   const loadAmCharts = () => {
@@ -17,7 +16,7 @@ export function useDonutChart() {
       const scripts = [
         { src: "https://cdn.amcharts.com/lib/5/index.js", key: "am5" },
         { src: "https://cdn.amcharts.com/lib/5/percent.js", key: "am5percent" },
-        { src: "https://cdn.amcharts.com/lib/5/themes/Animated.js", key: "am5themes_Animated" }
+        { src: "https://cdn.amcharts.com/lib/5/themes/Animated.js", key: "am5themes_Animated" },
       ];
 
       let loaded = 0;
@@ -49,65 +48,91 @@ export function useDonutChart() {
     }
   };
 
-  // Cleanup en unmount
   useEffect(() => {
-    return () => {
-      safeDispose();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => safeDispose();
   }, []);
 
-  const renderDonut = async (data: any[]) => {
+  /**
+   * Data FORMAT expected:
+   * [
+   *   { category: "Option 1", value: 50 },
+   *   { category: "Option 2", value: 30 },
+   *   { category: "Option 3", value: 20 },
+   * ]
+   */
+  const renderSemiCircle = async (data: any[]) => {
     await loadAmCharts();
 
-    const am5 = (window as any).am5;
-    const am5percent = (window as any).am5percent;
-    const Animated = (window as any).am5themes_Animated;
-
+    const am5 = window.am5;
+    const am5percent = window.am5percent;
+    const Animated = window.am5themes_Animated;
     if (!am5 || !am5percent || !Animated) return;
 
-    // ⛔ IMPORTANTE: usar el ID del modal correcto
-    const target = document.getElementById("chartdiv3");
+    const target = document.getElementById("chartSemiCircle");
     if (!target) return;
 
-    // borrar gráfico previo
+    // limpiar previo
     safeDispose();
 
-    // crear nuevo root en chartdiv3
-    const root = am5.Root.new("chartdiv3");
+    const root = am5.Root.new("chartSemiCircle");
     rootRef.current = root;
 
     root.setThemes([Animated.new(root)]);
 
+    // Crear chart tipo Pie con semi-círculo
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
-        innerRadius: am5.percent(55),
-        radius: am5.percent(70),
+        startAngle: 180,
+        endAngle: 360,
+        layout: root.verticalLayout,
+        innerRadius: am5.percent(20),
       })
     );
 
+    // Crear series
     const series = chart.series.push(
       am5percent.PieSeries.new(root, {
+        startAngle: 180,
+        endAngle: 360,
         valueField: "value",
         categoryField: "category",
+        alignLabels: false,
+        radius: am5.percent(60),
       })
     );
 
-    series.data.setAll(data || []);
-
-    series.slices.template.set("tooltipText", "{fullCategory}: {value} ({realPercent}%)");
-
+    // Configurar labels más pequeños
     series.labels.template.setAll({
-      text: "{category}",
-      fontSize: 11,
+      fontSize: 12,
+      textType: "regular",
+      radius: 45,
     });
 
-    series.appear(800, 100);
-    chart.appear(800, 100);
+    // Estado oculto para animación
+    series.states.create("hidden", {
+      startAngle: 180,
+      endAngle: 180,
+    });
+
+    // Configurar slices con esquinas redondeadas
+    series.slices.template.setAll({
+      cornerRadius: 5,
+    });
+
+    // Ocultar ticks
+    series.ticks.template.setAll({
+      forceHidden: true,
+    });
+
+    // Asignar datos
+    series.data.setAll(data);
+
+    // Animación
+    series.appear(1000, 100);
   };
 
   return {
-    renderDonut,
-    disposeDonut: safeDispose,
+    renderSemiCircle,
+    disposeSemiCircle: safeDispose,
   };
 }
