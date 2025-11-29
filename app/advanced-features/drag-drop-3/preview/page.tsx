@@ -3,6 +3,12 @@
 
 import { useState, useEffect } from 'react';
 
+interface SquareOption {
+  id: string;
+  value: string;
+  label: string;
+}
+
 interface FormStructure {
   pagina: string;
   filas: {
@@ -13,6 +19,7 @@ interface FormStructure {
         type: string;
         placeholder: string;
         className: string;
+        options?: SquareOption[];
         validate?: {
           required?: boolean;
           min4?: boolean;
@@ -28,6 +35,7 @@ export default function PreviewPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [formValues, setFormValues] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     // Obtener datos de sessionStorage
@@ -37,6 +45,18 @@ export default function PreviewPage() {
       try {
         const parsedData = JSON.parse(storedData);
         setFormData(parsedData);
+        
+        // Inicializar valores del formulario
+        const initialValues: { [key: string]: string } = {};
+        parsedData.forEach(pagina => {
+          pagina.filas.forEach(fila => {
+            Object.keys(fila.fields).forEach(fieldName => {
+              initialValues[fieldName] = '';
+            });
+          });
+        });
+        setFormValues(initialValues);
+        
       } catch (error) {
         console.error('Error parsing JSON data:', error);
       }
@@ -47,6 +67,13 @@ export default function PreviewPage() {
 
   const handleBack = () => {
     window.history.back();
+  };
+
+  const handleInputChange = (fieldName: string, value: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
   };
 
   const saveToDatabase = async () => {
@@ -188,17 +215,54 @@ export default function PreviewPage() {
                             <span className="text-red-500 ml-1">*</span>
                           )}
                         </label>
-                        <input
-                          type={fieldConfig.type}
-                          placeholder={fieldConfig.placeholder}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
+                        
+                        {/* Renderizar campo según el tipo */}
+                        {fieldConfig.type === 'select' && fieldConfig.options ? (
+                          <select
+                            value={formValues[fieldName] || ''}
+                            onChange={(e) => handleInputChange(fieldName, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Selecciona una opción</option>
+                            {fieldConfig.options.map((option, index) => (
+                              <option key={option.id || index} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={fieldConfig.type}
+                            placeholder={fieldConfig.placeholder}
+                            value={formValues[fieldName] || ''}
+                            onChange={(e) => handleInputChange(fieldName, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        )}
                       </div>
                       <div className="text-xs text-gray-500 mt-2">
                         <div><strong>Nombre del campo:</strong> {fieldName}</div>
                         <div><strong>Tipo:</strong> {fieldConfig.type}</div>
+                        
+                        {/* Mostrar opciones si es un select */}
+                        {fieldConfig.type === 'select' && fieldConfig.options && (
+                          <div className="mt-1">
+                            <strong>Opciones:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {fieldConfig.options.map((option, index) => (
+                                <span 
+                                  key={option.id || index}
+                                  className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs"
+                                >
+                                  {option.label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
                         {fieldConfig.validate?.required && (
-                          <div className="text-green-600 font-medium">Campo obligatorio</div>
+                          <div className="text-green-600 font-medium mt-1">Campo obligatorio</div>
                         )}
                       </div>
                     </div>
@@ -249,8 +313,20 @@ export default function PreviewPage() {
               total + pagina.filas.reduce((rowTotal, fila) => 
                 rowTotal + Object.keys(fila.fields).length, 0), 0)}
             </p>
+            <p><strong>Campos de selección:</strong> {formData.reduce((total, pagina) => 
+              total + pagina.filas.reduce((rowTotal, fila) => 
+                rowTotal + Object.values(fila.fields).filter(field => field.type === 'select').length, 0), 0)}
+            </p>
             <p><strong>URL API:</strong> http://93.127.135.52:6011/forms/</p>
           </div>
+        </div>
+
+        {/* Debug: Mostrar valores actuales del formulario */}
+        <div className="mt-6 bg-gray-100 border border-gray-300 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Valores del Formulario (Debug)</h3>
+          <pre className="text-xs text-gray-600 overflow-auto max-h-40">
+            {JSON.stringify(formValues, null, 2)}
+          </pre>
         </div>
       </div>
     </div>

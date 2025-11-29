@@ -2,64 +2,28 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-
-// Definición de tipos TypeScript
-interface Position {
-  x: number;
-  y: number;
-}
-
-interface Square {
-  id: string;
-  position: Position;
-  isUsed: boolean;
-  inputValue: string;
-  label: string;        
-  placeholder: string;  
-}
-
-interface Tab {
-  id: string;
-  name: string;
-  rows: Row[];
-}
-
-interface Row {
-  id: string;
-  spaces: number;
-}
-
-interface OccupiedSpaces {
-  [key: string]: string[];
-}
-
-interface FormStructure {
-  pagina: string;
-  filas: {
-    className: string;
-    fields: {
-      [key: string]: {
-        label: string;
-        type: string;
-        placeholder: string;
-        className: string;
-        validate?: {
-          required?: boolean;
-          min4?: boolean;
-        };
-      };
-    };
-  }[];
-}
-
-interface LogEntry {
-  tabId: string;
-  spaces: { [key: string]: string[] };
-  squareIds: string[];
-}
+import { useSquares } from './useSquares';
+import LeftPanel from './LeftPanel';
+import { Tab, Row, OccupiedSpaces, FormStructure, LogEntry, SquareOption } from './drag-drop';
 
 export default function Home() {
-  const [squares, setSquares] = useState<Square[]>([]);
+
+  const {
+    squares,
+    availableSquares,
+    createSquare,
+    updateSquareInput,
+    updateSquareLabel,
+    updateSquarePlaceholder,
+    addSquareOption,
+    updateSquareOption,
+    deleteSquareOption,
+    deleteSquare,
+    markSquareAsUsed,
+    markSquareAsUnused,
+    getSquareById
+  } = useSquares();
+
   const [tabs, setTabs] = useState<Tab[]>([{ 
     id: 'default', 
     name: 'Pestaña 1', 
@@ -76,306 +40,289 @@ export default function Home() {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
-  const createSquare = () => {
-    const newId = generateId();
-    const newSquare: Square = {
-      id: newId,
-      position: { x: 50, y: 50 + squares.length * 60 },
-      isUsed: false,
-      inputValue: 'text',
-      label: '',
-      placeholder: ''
-    };
-    setSquares([...squares, newSquare]);
+  const saveToSessionStorage = (data: FormStructure[]) => {
+    sessionStorage.setItem('formJsonData', JSON.stringify(data));
   };
 
-  const saveToSessionStorage = (data: FormStructure[]) => {
-  sessionStorage.setItem('formJsonData', JSON.stringify(data));
-};
-
-const generateAndSaveFormJson = () => {
-  // Verificar si hay espacios vacíos y si hay al menos un campo
-  let hasEmptySpaces = false;
-  let hasFields = false;
-  
-  tabs.forEach(tab => {
-    tab.rows.forEach(row => {
-      const spaceKey = `${tab.id}-${row.id}`;
-      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
-      
-      const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
-      const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
-      
-      if (emptySpaces > 0) {
-        hasEmptySpaces = true;
-        console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
-      }
-      
-      if (filledSpaces > 0) {
-        hasFields = true;
-      }
-    });
-  });
-  
-  if (hasEmptySpaces) {
-    alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
-    return;
-  }
-  
-  if (!hasFields) {
-    alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
-    return;
-  }
-  
-  // Generar el JSON actualizado en el momento
-  const currentFormStructure: FormStructure[] = [];
-  
-  tabs.forEach(tab => {
-    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
-    const filas: any[] = [];
+  const generateAndSaveFormJson = () => {
+    let hasEmptySpaces = false;
+    let hasFields = false;
     
-    tab.rows.forEach(row => {
-      const spaceKey = `${tab.id}-${row.id}`;
-      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+    tabs.forEach(tab => {
+      tab.rows.forEach(row => {
+        const spaceKey = `${tab.id}-${row.id}`;
+        const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+        
+        const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
+        const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
+        
+        if (emptySpaces > 0) {
+          hasEmptySpaces = true;
+          console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
+        }
+        
+        if (filledSpaces > 0) {
+          hasFields = true;
+        }
+      });
+    });
+    
+    if (hasEmptySpaces) {
+      alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
+      return;
+    }
+    
+    if (!hasFields) {
+      alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
+      return;
+    }
+    
+    const currentFormStructure: FormStructure[] = [];
+    
+    tabs.forEach(tab => {
+      const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+      const filas: any[] = [];
       
-      const fields: { [key: string]: any } = {};
-      let rowHasFields = false;
-      
-      rowSpaces.forEach((squareId, index) => {
-        if (squareId && squareId !== '') {
-          const square = squares.find(s => s.id === squareId);
-          if (square) {
-            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
-            fields[fieldName] = {
-              label: square.label,
-              type: square.inputValue,
-              placeholder: square.placeholder,
-              className: "col-span-1",
-              validate: { required: true }
-            };
-            rowHasFields = true;
+      tab.rows.forEach(row => {
+        const spaceKey = `${tab.id}-${row.id}`;
+        const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+        
+        const fields: { [key: string]: any } = {};
+        let rowHasFields = false;
+        
+        rowSpaces.forEach((squareId, index) => {
+          if (squareId && squareId !== '') {
+            const square = getSquareById(squareId);
+            if (square) {
+              const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+              const fieldConfig: any = {
+                label: square.label,
+                type: square.inputValue,
+                placeholder: square.placeholder,
+                className: "col-span-1",
+                validate: { required: true }
+              };
+
+              // Si es un select, agregar las opciones
+              if (square.inputValue === 'select' && square.options.length > 0) {
+                fieldConfig.options = square.options;
+              }
+
+              fields[fieldName] = fieldConfig;
+              rowHasFields = true;
+            }
           }
+        });
+        
+        if (rowHasFields) {
+          let className = "";
+          switch(row.spaces) {
+            case 1:
+              className = "grid grid-cols-1 gap-4";
+              break;
+            case 2:
+              className = "grid grid-cols-2 gap-4";
+              break;
+            case 3:
+              className = "grid grid-cols-3 gap-4";
+              break;
+          }
+          
+          filas.push({
+            className,
+            fields
+          });
         }
       });
       
-      if (rowHasFields) {
-        let className = "";
-        switch(row.spaces) {
-          case 1:
-            className = "grid grid-cols-1 gap-4";
-            break;
-          case 2:
-            className = "grid grid-cols-2 gap-4";
-            break;
-          case 3:
-            className = "grid grid-cols-3 gap-4";
-            break;
-        }
+      if (filas.length > 0) {
+        currentFormStructure.push({
+          pagina,
+          filas
+        });
+      }
+    });
+
+    saveToSessionStorage(currentFormStructure);
+    
+    console.log('🎯 JSON del Formulario:');
+    console.log(JSON.stringify(currentFormStructure, null, 2));
+
+    window.location.href = '/advanced-features/drag-drop-3/preview';
+  };
+
+  const updateFormStructure = useCallback(() => {
+    const newFormStructure: FormStructure[] = [];
+    
+    tabs.forEach(tab => {
+      const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+      const filas: any[] = [];
+      
+      tab.rows.forEach(row => {
+        const spaceKey = `${tab.id}-${row.id}`;
+        const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
         
-        filas.push({
-          className,
-          fields
+        const fields: { [key: string]: any } = {};
+        let hasFields = false;
+        
+        rowSpaces.forEach((squareId, index) => {
+          if (squareId && squareId !== '') {
+            const square = getSquareById(squareId);
+            if (square) {
+              const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+              const fieldConfig: any = {
+                label: square.label,
+                type: square.inputValue,
+                placeholder: square.placeholder,
+                className: "col-span-1",
+                validate: { required: true }
+              };
+
+              // Si es un select, agregar las opciones
+              if (square.inputValue === 'select' && square.options.length > 0) {
+                fieldConfig.options = square.options;
+              }
+
+              fields[fieldName] = fieldConfig;
+              hasFields = true;
+            }
+          }
+        });
+        
+        if (hasFields) {
+          let className = "";
+          switch(row.spaces) {
+            case 1:
+              className = "grid grid-cols-1 gap-4";
+              break;
+            case 2:
+              className = "grid grid-cols-2 gap-4";
+              break;
+            case 3:
+              className = "grid grid-cols-3 gap-4";
+              break;
+          }
+          
+          filas.push({
+            className,
+            fields
+          });
+        }
+      });
+      
+      if (filas.length > 0) {
+        newFormStructure.push({
+          pagina,
+          filas
         });
       }
     });
     
-    if (filas.length > 0) {
-      currentFormStructure.push({
-        pagina,
-        filas
-      });
-    }
-  });
+    setFormStructure(newFormStructure);
+  }, [tabs, occupiedSpaces, getSquareById]);
 
-  saveToSessionStorage(currentFormStructure);
-  
-  console.log('🎯 JSON del Formulario:');
-  console.log(JSON.stringify(currentFormStructure, null, 2));
-
-  window.location.href = '/advanced-features/drag-drop-3/preview';
-};
-
-const updateFormStructure = useCallback(() => {
-  const newFormStructure: FormStructure[] = [];
-  
-  tabs.forEach(tab => {
-    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
-    const filas: any[] = [];
+  const generateFormJson = () => {
+    let hasEmptySpaces = false;
+    let hasFields = false;
     
-    tab.rows.forEach(row => {
-      const spaceKey = `${tab.id}-${row.id}`;
-      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
-      
-      const fields: { [key: string]: any } = {};
-      let hasFields = false;
-      
-      rowSpaces.forEach((squareId, index) => {
-        if (squareId && squareId !== '') {
-          const square = squares.find(s => s.id === squareId);
-          if (square) {
-            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
-            fields[fieldName] = {
-              label: square.label,
-              type: square.inputValue,
-              placeholder: square.placeholder,
-              className: "col-span-1",
-              validate: { required: true }
-            };
-            hasFields = true;
-          }
-        }
-      });
-      
-      if (hasFields) {
-        let className = "";
-        switch(row.spaces) {
-          case 1:
-            className = "grid grid-cols-1 gap-4";
-            break;
-          case 2:
-            className = "grid grid-cols-2 gap-4";
-            break;
-          case 3:
-            className = "grid grid-cols-3 gap-4";
-            break;
+    tabs.forEach(tab => {
+      tab.rows.forEach(row => {
+        const spaceKey = `${tab.id}-${row.id}`;
+        const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+        
+        const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
+        const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
+        
+        if (emptySpaces > 0) {
+          hasEmptySpaces = true;
+          console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
         }
         
-        filas.push({
-          className,
-          fields
+        if (filledSpaces > 0) {
+          hasFields = true;
+        }
+      });
+    });
+    
+    if (hasEmptySpaces) {
+      alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
+      return;
+    }
+    
+    if (!hasFields) {
+      alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
+      return;
+    }
+    
+    const currentFormStructure: FormStructure[] = [];
+    
+    tabs.forEach(tab => {
+      const pagina = `Página ${tabs.indexOf(tab) + 1}`;
+      const filas: any[] = [];
+      
+      tab.rows.forEach(row => {
+        const spaceKey = `${tab.id}-${row.id}`;
+        const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
+        
+        const fields: { [key: string]: any } = {};
+        let rowHasFields = false;
+        
+        rowSpaces.forEach((squareId, index) => {
+          if (squareId && squareId !== '') {
+            const square = getSquareById(squareId);
+            if (square) {
+              const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
+              const fieldConfig: any = {
+                label: square.label,
+                type: square.inputValue,
+                placeholder: square.placeholder,
+                className: "col-span-1",
+                validate: { required: true }
+              };
+
+              // Si es un select, agregar las opciones
+              if (square.inputValue === 'select' && square.options.length > 0) {
+                fieldConfig.options = square.options;
+              }
+
+              fields[fieldName] = fieldConfig;
+              rowHasFields = true;
+            }
+          }
+        });
+        
+        if (rowHasFields) {
+          let className = "";
+          switch(row.spaces) {
+            case 1:
+              className = "grid grid-cols-1 gap-4";
+              break;
+            case 2:
+              className = "grid grid-cols-2 gap-4";
+              break;
+            case 3:
+              className = "grid grid-cols-3 gap-4";
+              break;
+          }
+          
+          filas.push({
+            className,
+            fields
+          });
+        }
+      });
+      
+      if (filas.length > 0) {
+        currentFormStructure.push({
+          pagina,
+          filas
         });
       }
     });
     
-    if (filas.length > 0) {
-      newFormStructure.push({
-        pagina,
-        filas
-      });
-    }
-  });
-  
-  setFormStructure(newFormStructure);
-}, [tabs, occupiedSpaces, squares]);
-
-const generateFormJson = () => {
-  let hasEmptySpaces = false;
-  let hasFields = false;
-  
-  tabs.forEach(tab => {
-    tab.rows.forEach(row => {
-      const spaceKey = `${tab.id}-${row.id}`;
-      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
-      
-      const emptySpaces = rowSpaces.filter(space => !space || space === '').length;
-      const filledSpaces = rowSpaces.filter(space => space && space !== '').length;
-      
-      if (emptySpaces > 0) {
-        hasEmptySpaces = true;
-        console.log(`❌ Fila en ${tab.name} tiene ${emptySpaces} espacio(s) vacío(s)`);
-      }
-      
-      if (filledSpaces > 0) {
-        hasFields = true;
-      }
-    });
-  });
-  
-  if (hasEmptySpaces) {
-    alert('Hay espacios vacíos en algunas filas. Completa todos los espacios antes de generar el JSON.');
-    return;
-  }
-  
-  if (!hasFields) {
-    alert('No hay filas con campos completos. Agrega cuadrados a los espacios primero.');
-    return;
-  }
-  
-  // Generar el JSON actualizado en el momento
-  const currentFormStructure: FormStructure[] = [];
-  
-  tabs.forEach(tab => {
-    const pagina = `Página ${tabs.indexOf(tab) + 1}`;
-    const filas: any[] = [];
-    
-    tab.rows.forEach(row => {
-      const spaceKey = `${tab.id}-${row.id}`;
-      const rowSpaces = occupiedSpaces[spaceKey] || Array(row.spaces).fill('');
-      
-      const fields: { [key: string]: any } = {};
-      let rowHasFields = false;
-      
-      rowSpaces.forEach((squareId, index) => {
-        if (squareId && squareId !== '') {
-          const square = squares.find(s => s.id === squareId);
-          if (square) {
-            const fieldName = `${square.label.toLowerCase().replace(/\s+/g, '_')}__${squareId}`;
-            fields[fieldName] = {
-              label: square.label,
-              type: square.inputValue,
-              placeholder: square.placeholder,
-              className: "col-span-1",
-              validate: { required: true }
-            };
-            rowHasFields = true;
-          }
-        }
-      });
-      
-      if (rowHasFields) {
-        let className = "";
-        switch(row.spaces) {
-          case 1:
-            className = "grid grid-cols-1 gap-4";
-            break;
-          case 2:
-            className = "grid grid-cols-2 gap-4";
-            break;
-          case 3:
-            className = "grid grid-cols-3 gap-4";
-            break;
-        }
-        
-        filas.push({
-          className,
-          fields
-        });
-      }
-    });
-    
-    if (filas.length > 0) {
-      currentFormStructure.push({
-        pagina,
-        filas
-      });
-    }
-  });
-  
-  console.log('🎯 JSON del Formulario:');
-  console.log(JSON.stringify(currentFormStructure, null, 2));
-  
-};
-
-  const updateSquareInput = useCallback((squareId: string, value: string) => {
-    setSquares(prev => prev.map(square => 
-      square.id === squareId ? { ...square, inputValue: value } : square
-    ));
-    updateFormStructure();
-  }, [updateFormStructure]);
-
-  const updateSquareLabel = useCallback((squareId: string, value: string) => {
-    setSquares(prev => prev.map(square => 
-      square.id === squareId ? { ...square, label: value } : square
-    ));
-    updateFormStructure();
-  }, [updateFormStructure]);
-
-  const updateSquarePlaceholder = useCallback((squareId: string, value: string) => {
-    setSquares(prev => prev.map(square => 
-      square.id === squareId ? { ...square, placeholder: value } : square
-    ));
-    updateFormStructure();
-  }, [updateFormStructure]);
+    console.log('🎯 JSON del Formulario:');
+    console.log(JSON.stringify(currentFormStructure, null, 2));
+  };
 
   const createTab = () => {
     const newId = generateId();
@@ -419,9 +366,9 @@ const generateFormJson = () => {
       }
     });
     
-    setSquares(prev => prev.map(square => 
-      squaresToFree.includes(square.id) ? { ...square, isUsed: false } : square
-    ));
+    squaresToFree.forEach(squareId => {
+      markSquareAsUnused(squareId);
+    });
     
     setOccupiedSpaces(newOccupiedSpaces);
     setTabs(prev => prev.map(tab => 
@@ -452,9 +399,9 @@ const generateFormJson = () => {
       }
     });
     
-    setSquares(prev => prev.map(square => 
-      squaresToFree.includes(square.id) ? { ...square, isUsed: false } : square
-    ));
+    squaresToFree.forEach(squareId => {
+      markSquareAsUnused(squareId);
+    });
     
     setOccupiedSpaces(newOccupiedSpaces);
     
@@ -471,28 +418,8 @@ const generateFormJson = () => {
     }, 0);
   };
 
-  const deleteSquare = (squareId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    const newOccupiedSpaces = { ...occupiedSpaces };
-    Object.keys(newOccupiedSpaces).forEach(spaceKey => {
-      newOccupiedSpaces[spaceKey] = newOccupiedSpaces[spaceKey].filter(id => id !== squareId);
-      if (newOccupiedSpaces[spaceKey].length === 0) {
-        delete newOccupiedSpaces[spaceKey];
-      }
-    });
-    
-    setOccupiedSpaces(newOccupiedSpaces);
-    setSquares(prev => prev.filter(square => square.id !== squareId));
-    
-    generateLog(newOccupiedSpaces);
-    setTimeout(() => {
-      updateFormStructure();
-    }, 0);
-  };
-
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, squareId: string) => {
-    const square = squares.find(s => s.id === squareId);
+    const square = getSquareById(squareId);
     if (square?.isUsed) {
       e.preventDefault();
       return;
@@ -517,7 +444,7 @@ const generateFormJson = () => {
     
     if (!squareId) return;
 
-    const square = squares.find(s => s.id === squareId);
+    const square = getSquareById(squareId);
     if (!square || square.isUsed) return;
     
     const spaceKey = `${tabId}-${rowId}`;
@@ -536,11 +463,8 @@ const generateFormJson = () => {
     };
     
     setOccupiedSpaces(newOccupiedSpaces);
-    setSquares(prev => prev.map(square => 
-      square.id === squareId ? { ...square, isUsed: true } : square
-    ));
+    markSquareAsUsed(squareId);
     
-    // Actualizar estructura inmediatamente
     setTimeout(() => {
       updateFormStructure();
     }, 0);
@@ -565,14 +489,13 @@ const generateFormJson = () => {
       newOccupiedSpaces[spaceKey] = newSpaces;
     }
     
-    setSquares(prev => prev.map(square => 
-      square.id === squareId ? { ...square, isUsed: false } : square
-    ));
+    if (squareId) {
+      markSquareAsUnused(squareId);
+    }
     
     setOccupiedSpaces(newOccupiedSpaces);
     generateLog(newOccupiedSpaces);
     
-    // Actualizar estructura inmediatamente
     setTimeout(() => {
       updateFormStructure();
     }, 0);
@@ -606,8 +529,6 @@ const generateFormJson = () => {
     console.log('Array acumulativo de espacios:', logArray);
   };
 
-  const availableSquares = squares.filter(square => !square.isUsed);
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <main className="max-w-7xl mx-auto">
@@ -616,71 +537,19 @@ const generateFormJson = () => {
         </h1>
         
         <div className="flex gap-6 mb-8">
-          <div className="flex-1 bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-700 mb-4">Panel Izquierdo</h2>
-            <button 
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium mb-4 transition-colors"
-              onClick={createSquare}
-            >
-              Crear Cuadrado
-            </button>
-            
-            <div className="relative min-h-[400px] border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
-              {availableSquares.map((square, index) => (
-                <div
-                  key={square.id}
-                  className="absolute w-48 h-28 flex flex-col items-center justify-center rounded-lg cursor-move select-none shadow-md transition-all bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm p-2"
-                  draggable={true}
-                  onDragStart={(e) => handleDragStart(e, square.id)}
-                  onDragEnd={handleDragEnd}
-                  style={{
-                    left: `${square.position.x}px`,
-                    top: `${50 + index * 100}px`
-                  }}
-                >
-                  <span className="mb-1 text-xs">{square.id}</span>
-                  <input
-                    type="text"
-                    value={square.inputValue}
-                    onChange={(e) => updateSquareInput(square.id, e.target.value)}
-                    placeholder="Type (text, email, etc)..."
-                    className="w-full px-2 py-1 text-xs text-black rounded border-none mb-1"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <input
-                    type="text"
-                    value={square.label}
-                    onChange={(e) => updateSquareLabel(square.id, e.target.value)}
-                    placeholder="Label..."
-                    className="w-full px-2 py-1 text-xs text-black rounded border-none mb-1"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <input
-                    type="text"
-                    value={square.placeholder}
-                    onChange={(e) => updateSquarePlaceholder(square.id, e.target.value)}
-                    placeholder="Placeholder..."
-                    className="w-full px-2 py-1 text-xs text-black rounded border-none"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <button
-                    className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full text-xs flex items-center justify-center"
-                    onClick={(e) => deleteSquare(square.id, e)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {availableSquares.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-                  No hay cuadrados disponibles
-                </div>
-              )}
-            </div>
-            <div className="mt-2 text-sm text-gray-600">
-              Cuadrados disponibles: {availableSquares.length}
-            </div>
-          </div>
+          <LeftPanel
+            availableSquares={availableSquares}
+            onCreateSquare={createSquare}
+            onUpdateSquareInput={updateSquareInput}
+            onUpdateSquareLabel={updateSquareLabel}
+            onUpdateSquarePlaceholder={updateSquarePlaceholder}
+            onAddSquareOption={addSquareOption}
+            onUpdateSquareOption={updateSquareOption}
+            onDeleteSquareOption={deleteSquareOption}
+            onDeleteSquare={deleteSquare}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          />
           
           <div className="flex-1 bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">Panel Derecho</h2>
@@ -771,7 +640,7 @@ const generateFormJson = () => {
                             <div className="flex gap-3">
                               {Array.from({ length: row.spaces }, (_, spaceIndex) => {
                                 const squareId = rowSpaces[spaceIndex];
-                                const square = squares.find(s => s.id === squareId);
+                                const square = getSquareById(squareId);
                                 
                                 return (
                                   <div
@@ -790,6 +659,11 @@ const generateFormJson = () => {
                                             <div className="text-green-600 font-medium">Type: {square.inputValue}</div>
                                             <div className="text-gray-600">Label: {square.label}</div>
                                             <div className="text-gray-500">Placeholder: {square.placeholder}</div>
+                                            {square.inputValue === 'select' && square.options.length > 0 && (
+                                              <div className="text-purple-600 text-xs mt-1">
+                                                Opciones: {square.options.length}
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                         <button
@@ -820,24 +694,24 @@ const generateFormJson = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-  <h3 className="text-lg font-semibold text-gray-700 mb-3">
-    Generar JSON del Formulario
-  </h3>
-  <div className="flex gap-2">
-    <button 
-      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-      onClick={() => generateFormJson()}
-    >
-      Mostrar JSON en Consola
-    </button>
-    <button 
-      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-      onClick={() => generateAndSaveFormJson()}
-    >
-      Ver Preview
-    </button>
-  </div>
-</div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            Generar JSON del Formulario
+          </h3>
+          <div className="flex gap-2">
+            <button 
+              className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              onClick={() => generateFormJson()}
+            >
+              Mostrar JSON en Consola
+            </button>
+            <button 
+              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              onClick={() => generateAndSaveFormJson()}
+            >
+              Ver Preview
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   );

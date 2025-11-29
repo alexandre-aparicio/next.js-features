@@ -1,4 +1,4 @@
-// /lib/hooks/useDonutChart.ts
+// /hooks/useDonutChart.ts
 import { useRef, useEffect } from "react";
 
 declare const window: any;

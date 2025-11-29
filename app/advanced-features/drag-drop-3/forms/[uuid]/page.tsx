@@ -4,11 +4,18 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 
+interface SquareOption {
+  id: string;
+  value: string;
+  label: string;
+}
+
 interface FormField {
   label: string;
   type: string;
   placeholder: string;
   className: string;
+  options?: SquareOption[];
   validate?: {
     required?: boolean;
     min4?: boolean;
@@ -426,6 +433,63 @@ export default function FormViewPage() {
     showToast('🗑️ Formularios pendientes eliminados', 'info');
   };
 
+  // Función para renderizar campos de selección (radio o select)
+  const renderSelectionField = (fieldName: string, fieldConfig: FormField) => {
+    const options = fieldConfig.options || [];
+    
+    // Si hay 4 o menos opciones, usar radio buttons
+    if (options.length <= 4) {
+      return (
+        <div className="space-y-2">
+          {options.map((option, index) => (
+            <label key={option.id || index} className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name={fieldName}
+                value={option.value}
+                checked={formValues[fieldName] === option.value}
+                onChange={(e) => handleInputChange(fieldName, e.target.value)}
+                className="text-blue-600 focus:ring-blue-500"
+                required={fieldConfig.validate?.required}
+              />
+              <span className="text-gray-700">{option.label}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+    
+    // Si hay más de 4 opciones, usar select
+    return (
+      <select
+        value={formValues[fieldName] || ''}
+        onChange={(e) => handleInputChange(fieldName, e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        required={fieldConfig.validate?.required}
+      >
+        <option value="">Selecciona una opción</option>
+        {options.map((option, index) => (
+          <option key={option.id || index} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  // Función para contar campos de selección
+  const countSelectionFields = () => {
+    if (!form) return 0;
+    
+    return form.form_data.reduce((total, page) => {
+      return total + page.filas.reduce((rowTotal, row) => {
+        return rowTotal + Object.values(row.fields).filter(field => 
+          field.type === 'select' && field.options && field.options.length > 0
+        ).length;
+      }, 0);
+    }, 0);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -609,6 +673,7 @@ export default function FormViewPage() {
                             )}
                           </label>
                           
+                          {/* Renderizar campo según el tipo */}
                           {fieldConfig.type === 'textarea' ? (
                             <textarea
                               value={formValues[fieldName] || ''}
@@ -617,7 +682,11 @@ export default function FormViewPage() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical min-h-[100px]"
                               required={fieldConfig.validate?.required}
                             />
+                          ) : fieldConfig.type === 'select' && fieldConfig.options && fieldConfig.options.length > 0 ? (
+                            // Campo de selección (radio o select)
+                            renderSelectionField(fieldName, fieldConfig)
                           ) : (
+                            // Campo de texto normal
                             <input
                               type={fieldConfig.type}
                               value={formValues[fieldName] || ''}
@@ -632,6 +701,20 @@ export default function FormViewPage() {
                         <div className="text-xs text-gray-500 border-t pt-2">
                           <div><strong>Nombre del campo:</strong> {fieldName}</div>
                           <div><strong>Tipo:</strong> {fieldConfig.type}</div>
+                          
+                          {/* Mostrar información de opciones si es un select */}
+                          {fieldConfig.type === 'select' && fieldConfig.options && (
+                            <div className="mt-1">
+                              <strong>Opciones:</strong> {fieldConfig.options.length}
+                              {fieldConfig.options.length <= 4 && (
+                                <span className="text-green-600 ml-1">(usando radio buttons)</span>
+                              )}
+                              {fieldConfig.options.length > 4 && (
+                                <span className="text-blue-600 ml-1">(usando dropdown)</span>
+                              )}
+                            </div>
+                          )}
+                          
                           {fieldConfig.validate?.required && (
                             <div className="text-green-600 font-medium">Campo obligatorio</div>
                           )}
@@ -708,6 +791,7 @@ export default function FormViewPage() {
             <div>
               <p><strong>Total de páginas:</strong> {form.form_data.length}</p>
               <p><strong>Total de campos:</strong> {Object.keys(formValues).length}</p>
+              <p><strong>Campos de selección:</strong> {countSelectionFields()}</p>
             </div>
             <div>
               <p><strong>Creado por:</strong> {form.created_by || 'N/A'}</p>
