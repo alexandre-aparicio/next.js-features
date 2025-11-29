@@ -49,13 +49,13 @@ export const renderMiniDonut = async ({
     );
 
     // -----------------------------
-    // DONUT ARRIBA
+    // DONUT MÁS GRANDE
     // -----------------------------
     const chart = wrapper.children.push(
       am5percent.PieChart.new(root, {
-        innerRadius: am5.percent(40),
+        innerRadius: am5.percent(30),
         width: am5.percent(100),
-        height: am5.percent(70) // Más espacio para la leyenda horizontal
+        height: am5.percent(80)
       })
     );
 
@@ -67,73 +67,91 @@ export const renderMiniDonut = async ({
       })
     );
 
-    // Etiquetas de porcentaje con líneas
+    // Etiquetas de porcentaje
     series.labels.template.setAll({
       text: "{valuePercentTotal.formatNumber('#.0')}%",
-      fontSize: 10,
+      fontSize: 12,
       inside: false,
-      radius: 10
+      radius: 15,
+      fill: am5.color(0x000000)
     });
 
+    // Líneas de conexión
     series.ticks.template.setAll({
       strokeWidth: 1,
-      strokeOpacity: 0.6
+      strokeOpacity: 0.6,
+      length: 8
     });
 
     series.data.setAll(data || []);
     seriesRefs.current[containerId] = series;
 
     // -----------------------------
-    // LEYENDA HORIZONTAL ABAJO
+    // LEYENDA EN LA PARTE INFERIOR
     // -----------------------------
-    const legend = wrapper.children.push(
-      am5.Legend.new(root, {
+    const legendContainer = wrapper.children.push(
+      am5.Container.new(root, {
         width: am5.percent(100),
-        height: am5.percent(30),
-        centerX: am5.percent(50),
-        x: am5.percent(50),
-        marginTop: 5,
-        marginBottom: 0,
-        layout: root.horizontalLayout, // Layout horizontal
-        maxColumns: 3, // Máximo de columnas
-        centerGrid: true // Centrar los elementos
+        layout: root.horizontalLayout,
+        paddingTop: 0,
+        paddingBottom: 0,
+        paddingLeft: 0,
+        paddingRight: 0
       })
     );
 
-    // Configurar los marcadores (cuadrados)
+    const legend = legendContainer.children.push(
+      am5.Legend.new(root, {
+        width: am5.percent(100),
+        layout: root.horizontalLayout,
+        centerX: am5.percent(50), 
+        x: am5.percent(50),
+        contentAlign: "center",
+        maxColumns: data.length,
+      })
+    );
+
+    // Marcadores
     legend.markers.template.setAll({
-      width: 12,
-      height: 12,
-      marginRight: 5,
-      marginLeft: 0
+      width: 14,
+      height: 14,
+      marginRight: 8
     });
 
-    // Configurar los labels
+    // Labels
     legend.labels.template.setAll({
-      fontSize: 9,
+      fontSize: 11,
       text: "{category}",
-      maxWidth: 60,
+      textAlign: "center",
+      maxWidth: 70,
       textOverflow: "ellipsis"
     });
 
-    // Configurar los valores
+    // Valores - muestra el valor absoluto usando un adaptador
     legend.valueLabels.template.setAll({
-      fontSize: 9,
-      text: "{value}",
-      marginLeft: 3
+      fontSize: 11,
+      textAlign: "center",
+      marginLeft: 5
     });
 
-    // Aplicar layout horizontal forzado
+    legend.valueLabels.template.adapters.add("text", function(text: any, target: any) {
+      const dataItem = target.dataItem;
+      if (dataItem && dataItem.dataContext) {
+        return String(dataItem.dataContext.value);
+      }
+      return text;
+    });
+
     legend.itemContainers.template.setAll({
-      maxWidth: 80,
-      marginRight: 5,
-      marginLeft: 0
+      centerX: am5.percent(50),
+      centerY: am5.percent(50),
+      layout: root.horizontalLayout
     });
 
     legend.data.setAll(series.dataItems);
 
-    series.appear(500, 80);
-    chart.appear(500, 80);
+    series.appear(500, 100);
+    chart.appear(500, 100);
   } catch (error) {
     console.error("Error mini-donut:", error);
   }
