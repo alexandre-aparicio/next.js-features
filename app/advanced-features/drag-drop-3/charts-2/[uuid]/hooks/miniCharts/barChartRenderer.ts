@@ -1,5 +1,5 @@
-// /lib/hooks/chartRenderers/barChartRenderer.ts
-import { MutableRefObject } from "react";
+// /lib/hooks/miniCharts/barChartRenderer.ts
+import { RefObject } from "react";
 
 declare const window: any;
 
@@ -7,8 +7,8 @@ interface BarChartRendererProps {
   data: any[];
   fieldName: string;
   containerId: string;
-  rootRefs: MutableRefObject<{ [key: string]: any }>;
-  seriesRefs: MutableRefObject<{ [key: string]: any }>;
+  rootRefs: RefObject<{ [key: string]: any }>;
+  seriesRefs: RefObject<{ [key: string]: any }>;
   safeDispose: (chartId: string) => void;
 }
 
@@ -25,7 +25,7 @@ export const renderMiniBars = async ({
 
   const target = document.getElementById(containerId);
   if (!target) return;
-  target.innerHTML = "";
+  target.innerHTML = '';
 
   safeDispose(containerId);
 
@@ -47,43 +47,50 @@ export const renderMiniBars = async ({
       })
     );
 
-    // ---------------- EJE X - Labels debajo ----------------
-    const xRenderer = am5xy.AxisRendererX.new(root, {
+    // -----------------------------
+    // X AXIS — labels abajo
+    // -----------------------------
+    const xRenderer = am5xy.AxisRendererX.new(root, { 
       minGridDistance: 20,
-      inside: false
+      inside: false // ⬅⬅⬅ se mueven los labels abajo
     });
 
     xRenderer.grid.template.setAll({ visible: false });
 
-    xRenderer.labels.template.setAll({
-      fontSize: 8,
+    xRenderer.labels.template.setAll({ 
+      fontSize: 11,
       maxWidth: 30,
       textOverflow: "ellipsis",
-      inside: false,
+      inside: false, 
+      centerY: am5.p0,
       location: 0.5
     });
 
     const xAxis = chart.xAxes.push(
-      am5xy.CategoryAxis.new(root, {
-        categoryField: "category",
-        renderer: xRenderer
+      am5xy.CategoryAxis.new(root, { 
+        categoryField: "category", 
+        renderer: xRenderer 
       })
     );
     xAxis.data.setAll(data || []);
 
-    // ---------------- EJE Y ----------------
+    // -----------------------------
+    // Y AXIS
+    // -----------------------------
     const yRenderer = am5xy.AxisRendererY.new(root, { inside: true });
     yRenderer.grid.template.setAll({ visible: false });
     yRenderer.labels.template.setAll({ fontSize: 8, inside: true });
 
     const yAxis = chart.yAxes.push(
-      am5xy.ValueAxis.new(root, {
-        min: 0,
-        renderer: yRenderer
+      am5xy.ValueAxis.new(root, { 
+        min: 0, 
+        renderer: yRenderer 
       })
     );
 
-    // ---------------- SERIES ----------------
+    // -----------------------------
+    // SERIES
+    // -----------------------------
     const series = chart.series.push(
       am5xy.ColumnSeries.new(root, {
         name: fieldName,
@@ -92,34 +99,30 @@ export const renderMiniBars = async ({
         valueYField: "value",
         categoryXField: "category",
 
-        // Tooltip mejorado y asegurado
         tooltip: am5.Tooltip.new(root, {
-          labelText: "{valueY}",
+          labelText: "{categoryX}: {valueY}",  
           pointerOrientation: "vertical"
         })
       })
     );
 
-    // Muy importante en gráficos pequeños
     series.set("interactive", true);
 
-    series.columns.template.setAll({
-      width: am5.percent(50),
-      cornerRadiusTL: 2,
-      cornerRadiusTR: 2,
+    series.columns.template.setAll({ 
+      width: am5.percent(50), 
+      cornerRadiusTL: 2, 
+      cornerRadiusTR: 2, 
       strokeOpacity: 0,
-      interactive: true, // <-- NECESARIO para hover
-      tooltipText: "{valueY}" // fallback
+      interactive: true,  
+      tooltipText: "{categoryX}: {valueY}"    
     });
-
+    
     series.data.setAll(data || []);
     seriesRefs.current[containerId] = series;
 
-    // Animaciones
     series.appear(300);
     chart.appear(300);
-
   } catch (error) {
-    console.error("Error mini-bar:", error);
+    console.error('Error mini-bar:', error);
   }
 };

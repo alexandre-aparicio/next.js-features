@@ -1,6 +1,7 @@
 // /lib/hooks/useMiniCharts.ts
 import { useRef, useEffect } from "react";
 import { renderMiniBars } from "./miniCharts/barChartRenderer";
+import { renderMiniDonut } from "./miniCharts/donutChartRender";
 
 declare const window: any;
 
@@ -81,38 +82,6 @@ export function useMiniCharts() {
   };
 
   useEffect(() => disposeAllMiniCharts, []);
-
-  const renderMiniDonut = async (data: any[], fieldName: string, containerId: string) => {
-    await loadAmCharts();
-    const { am5, am5percent, am5themes_Animated } = window;
-    if (!am5 || !am5percent || !am5themes_Animated) return;
-
-    const target = document.getElementById(containerId);
-    if (!target) return;
-    target.innerHTML = '';
-
-    safeDispose(containerId);
-
-    try {
-      const root = am5.Root.new(containerId);
-      rootRefs.current[containerId] = root;
-      root.setThemes([am5themes_Animated.new(root)]);
-
-      const chart = root.container.children.push(am5percent.PieChart.new(root, { innerRadius: am5.percent(40), width: am5.percent(100), height: am5.percent(100) }));
-      const series = chart.series.push(am5percent.PieSeries.new(root, { name: fieldName, valueField: "value", categoryField: "category" }));
-
-      series.labels.template.setAll({ fontSize: 8, text: "{category}", inside: true });
-      series.ticks.template.setAll({ forceHidden: true });
-
-      series.data.setAll(data || []);
-      seriesRefs.current[containerId] = series;
-
-      series.appear(300);
-      chart.appear(300);
-    } catch (error) {
-      console.error('Error mini-donut:', error);
-    }
-  };
 
   const renderMiniTree = async (data: any[], fieldName: string, containerId: string) => {
     await loadHierarchyCharts();
@@ -211,13 +180,27 @@ export function useMiniCharts() {
           safeDispose
         });
       case 'donut': 
-        return renderMiniDonut(data, fieldName, containerId);
+        return renderMiniDonut({
+          data,
+          fieldName,
+          containerId,
+          rootRefs,
+          seriesRefs,
+          safeDispose
+        });
       case 'tree': 
         return renderMiniTree(data, fieldName, containerId);
       case 'variable': 
         return renderMiniVariablePie(data, fieldName, containerId);
       case 'semi': 
-        return renderMiniDonut(data, fieldName, containerId);
+        return renderMiniDonut({
+          data,
+          fieldName,
+          containerId,
+          rootRefs,
+          seriesRefs,
+          safeDispose
+        });
       default: 
         return renderMiniBars({
           data,
