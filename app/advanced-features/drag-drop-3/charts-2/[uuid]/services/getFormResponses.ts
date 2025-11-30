@@ -27,5 +27,9 @@ export async function getFormResponses(uuid: string): Promise<FormResponse[]> {
   }
 
   const data: ApiResponse = await res.json();
+
+  console.log("estos son los datos")
+  console.log(data)
+
   return data.items || [];
 }

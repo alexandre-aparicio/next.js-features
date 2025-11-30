@@ -1,62 +1,42 @@
-// app/FormBuilder.tsx
+// components/RightPanel.tsx
+'use client';
 
-interface Square {
-  id: string;
-  position: { x: number; y: number };
-  isUsed: boolean;
-  inputValue: string;
-  label: string;
-  placeholder: string;
-  selectType: string;
-}
+import React from 'react';
+import { Tab, Row, OccupiedSpaces, FormStructure, LogEntry, SquareOption } from './drag-drop';
 
-interface Tab {
-  id: string;
-  name: string;
-  rows: Row[];
-}
-
-interface Row {
-  id: string;
-  spaces: number;
-}
-
-interface OccupiedSpaces {
-  [key: string]: string[];
-}
-
-interface FormBuilderProps {
+interface RightPanelProps {
   tabs: Tab[];
   activeTab: string;
+  occupiedSpaces: OccupiedSpaces;
+  getSquareById: (id: string) => any;
   setActiveTab: (tabId: string) => void;
   createTab: () => void;
   addRow: (spaces: number) => void;
-  deleteTab: (tabId: string, e: React.MouseEvent) => void;
   deleteRow: (rowId: string) => void;
-  squares: Square[];
-  occupiedSpaces: OccupiedSpaces;
+  deleteTab: (tabId: string, e: React.MouseEvent) => void;
   handleDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   handleDrop: (e: React.DragEvent<HTMLDivElement>, tabId: string, rowId: string, spaceIndex: number) => void;
   removeSquareFromSpace: (tabId: string, rowId: string, spaceIndex: number) => void;
 }
 
-export default function FormBuilder({
+export default function RightPanel({
   tabs,
   activeTab,
+  occupiedSpaces,
+  getSquareById,
   setActiveTab,
   createTab,
   addRow,
-  deleteTab,
   deleteRow,
-  squares,
-  occupiedSpaces,
+  deleteTab,
   handleDragOver,
   handleDrop,
   removeSquareFromSpace
-}: FormBuilderProps) {
+}: RightPanelProps) {
   return (
     <div className="flex-1 bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-semibold text-gray-700 mb-4">Panel Derecho</h2>
+      
       <div className="flex gap-2 mb-4 flex-wrap">
         <button 
           className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -83,7 +63,8 @@ export default function FormBuilder({
           3 Espacios
         </button>
       </div>
-      
+
+      {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-4 flex-wrap">
         {tabs.map((tab) => (
           <div
@@ -107,13 +88,11 @@ export default function FormBuilder({
           </div>
         ))}
       </div>
-      
+
+      {/* Tab Content */}
       <div className="tab-content">
         {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`${activeTab === tab.id ? 'block' : 'hidden'}`}
-          >
+          <div key={tab.id} className={`${activeTab === tab.id ? 'block' : 'hidden'}`}>
             <h3 className="text-lg font-medium text-gray-700 mb-4">
               Contenido de {tab.name}
             </h3>
@@ -144,7 +123,7 @@ export default function FormBuilder({
                       <div className="flex gap-3">
                         {Array.from({ length: row.spaces }, (_, spaceIndex) => {
                           const squareId = rowSpaces[spaceIndex];
-                          const square = squares.find(s => s.id === squareId);
+                          const square = getSquareById(squareId);
                           
                           return (
                             <div
@@ -163,6 +142,11 @@ export default function FormBuilder({
                                       <div className="text-green-600 font-medium">Type: {square.inputValue}</div>
                                       <div className="text-gray-600">Label: {square.label}</div>
                                       <div className="text-gray-500">Placeholder: {square.placeholder}</div>
+                                      {square.inputValue === 'select' && square.options.length > 0 && (
+                                        <div className="text-purple-600 text-xs mt-1">
+                                          Opciones: {square.options.length}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   <button

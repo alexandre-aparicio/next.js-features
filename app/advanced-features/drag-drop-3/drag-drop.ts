@@ -14,10 +14,11 @@ export interface Square {
   id: string;
   position: Position;
   isUsed: boolean;
-  inputValue: string; // 'text', 'select', 'email', etc.
+  inputValue: string; 
   label: string;
+  selectType: string,
   placeholder: string;
-  options: SquareOption[]; // Nuevo: opciones para select
+  options: SquareOption[]; 
 }
 
 export interface Tab {
@@ -45,7 +46,8 @@ export interface FormStructure {
         type: string;
         placeholder: string;
         className: string;
-        options?: SquareOption[]; // Nuevo: opciones para select en el formulario
+        selectType: string,
+        options?: SquareOption[]; 
         validate?: {
           required?: boolean;
           min4?: boolean;

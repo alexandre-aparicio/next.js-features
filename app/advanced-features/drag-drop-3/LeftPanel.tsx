@@ -6,6 +6,7 @@ interface LeftPanelProps {
   availableSquares: Square[];
   onCreateSquare: () => void;
   onUpdateSquareInput: (squareId: string, value: string) => void;
+  onUpdateSquareSelectType: (squareId: string, value: 'single' | 'multiple') => void;
   onUpdateSquareLabel: (squareId: string, value: string) => void;
   onUpdateSquarePlaceholder: (squareId: string, value: string) => void;
   onAddSquareOption: (squareId: string, option: SquareOption) => void;
@@ -20,6 +21,7 @@ export default function LeftPanel({
   availableSquares,
   onCreateSquare,
   onUpdateSquareInput,
+  onUpdateSquareSelectType,
   onUpdateSquareLabel,
   onUpdateSquarePlaceholder,
   onAddSquareOption,
@@ -37,7 +39,7 @@ export default function LeftPanel({
 
     const newOption: SquareOption = {
       id: Math.random().toString(36).substr(2, 9),
-      value: value,
+      value: value.toLowerCase().replace(/\s+/g, '_'),
       label: value
     };
 
@@ -60,7 +62,7 @@ export default function LeftPanel({
       >
         Crear Cuadrado
       </button>
-      
+
       <div className="relative min-h-[400px] border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
         {availableSquares.map((square, index) => (
           <div
@@ -69,16 +71,13 @@ export default function LeftPanel({
             draggable={true}
             onDragStart={(e) => onDragStart(e, square.id)}
             onDragEnd={onDragEnd}
-            style={{
-              left: `${square.position.x}px`,
-              top: `${50 + index * 180}px`
-            }}
+            style={{ left: `${square.position.x}px`, top: `${50 + index * 180}px` }}
           >
             <span className="mb-2 text-xs font-mono bg-blue-700 px-2 py-1 rounded">
               {square.id}
             </span>
-            
-            {/* Select para tipo de input */}
+
+            {/* Tipo de input */}
             <select
               value={square.inputValue}
               onChange={(e) => onUpdateSquareInput(square.id, e.target.value)}
@@ -87,13 +86,11 @@ export default function LeftPanel({
             >
               <option value="text">Text</option>
               <option value="select">Select</option>
-              <option value="email">Email</option>
               <option value="number">Number</option>
-              <option value="password">Password</option>
-              <option value="tel">Teléfono</option>
               <option value="date">Fecha</option>
             </select>
-            
+
+            {/* Label y placeholder */}
             <input
               type="text"
               value={square.label}
@@ -102,7 +99,6 @@ export default function LeftPanel({
               className="w-full px-2 py-1 text-xs text-black rounded border-none mb-2"
               onClick={(e) => e.stopPropagation()}
             />
-            
             <input
               type="text"
               value={square.placeholder}
@@ -112,24 +108,51 @@ export default function LeftPanel({
               onClick={(e) => e.stopPropagation()}
             />
 
-            {/* Sección de opciones para select */}
+            {/* Sección para select */}
             {square.inputValue === 'select' && (
               <div className="w-full bg-blue-400 rounded p-2 mb-2">
-                <div className="text-xs font-semibold mb-2 text-white">Opciones:</div>
-                
-                {/* Lista de opciones existentes */}
-                {square.options.map((option, optIndex) => (
+                {/* Radios single/multiple */}
+                <div className="text-xs font-semibold mb-2 text-white">Tipo de selección:</div>
+                <div className="flex gap-2 mb-2">
+                  <label className="flex items-center gap-1 text-white text-xs">
+                    <input
+                      type="radio"
+                      name={`selectType-${square.id}`}
+                      value="single"
+                      checked={square.selectType === 'single'}
+                      onChange={() => onUpdateSquareSelectType(square.id, 'single')}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    Respuesta Única
+                  </label>
+                  <label className="flex items-center gap-1 text-white text-xs">
+                    <input
+                      type="radio"
+                      name={`selectType-${square.id}`}
+                      value="multiple"
+                      checked={square.selectType === 'multiple'}
+                      onChange={() => onUpdateSquareSelectType(square.id, 'multiple')}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    Respuesta Múltiple
+                  </label>
+                </div>
+
+                {/* Opciones existentes */}
+                {square.options.map((option) => (
                   <div key={option.id} className="flex items-center gap-1 mb-1">
                     <input
                       type="text"
                       value={option.label}
-                      onChange={(e) => onUpdateSquareOption(square.id, option.id, { 
-                        label: e.target.value,
-                        value: e.target.value.toLowerCase().replace(/\s+/g, '_')
-                      })}
                       placeholder="Opción..."
                       className="flex-1 px-2 py-1 text-xs text-black rounded border-none"
                       onClick={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        onUpdateSquareOption(square.id, option.id, {
+                          label: e.target.value,
+                          value: e.target.value.toLowerCase().replace(/\s+/g, '_')
+                        })
+                      }
                     />
                     <button
                       className="bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full text-xs flex items-center justify-center"
@@ -142,20 +165,19 @@ export default function LeftPanel({
                     </button>
                   </div>
                 ))}
-                
-                {/* Agregar nueva opción */}
+
+                {/* Input para agregar nueva opción */}
                 <div className="flex items-center gap-1 mt-2">
                   <input
                     type="text"
                     value={newOptionValues[square.id] || ''}
-                    onChange={(e) => setNewOptionValues(prev => ({ 
-                      ...prev, 
-                      [square.id]: e.target.value 
-                    }))}
-                    onKeyPress={(e) => handleOptionKeyPress(e, square.id)}
                     placeholder="Nueva opción..."
                     className="flex-1 px-2 py-1 text-xs text-black rounded border-none"
                     onClick={(e) => e.stopPropagation()}
+                    onChange={(e) =>
+                      setNewOptionValues(prev => ({ ...prev, [square.id]: e.target.value }))
+                    }
+                    onKeyPress={(e) => handleOptionKeyPress(e, square.id)}
                   />
                   <button
                     className="bg-green-500 hover:bg-green-600 text-white w-6 h-6 rounded text-xs flex items-center justify-center"
@@ -169,7 +191,8 @@ export default function LeftPanel({
                 </div>
               </div>
             )}
-            
+
+            {/* Botón eliminar cuadrado */}
             <button
               className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full text-xs flex items-center justify-center"
               onClick={(e) => {
@@ -181,12 +204,14 @@ export default function LeftPanel({
             </button>
           </div>
         ))}
+
         {availableSquares.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500">
             No hay cuadrados disponibles
           </div>
         )}
       </div>
+
       <div className="mt-2 text-sm text-gray-600">
         Cuadrados disponibles: {availableSquares.length}
       </div>

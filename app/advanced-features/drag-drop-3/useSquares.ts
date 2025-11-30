@@ -9,20 +9,27 @@ export const useSquares = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
-  const createSquare = useCallback(() => {
-    const newId = generateId();
-    const newSquare: Square = {
-      id: newId,
-      position: { x: 50, y: 50 + squares.length * 60 },
-      isUsed: false,
-      inputValue: 'text',
-      label: '',
-      placeholder: '',
-      options: [] // Inicializar con array vacío de opciones
-    };
-    setSquares(prev => [...prev, newSquare]);
-    return newSquare;
-  }, [squares.length]);
+const createSquare = useCallback(() => {
+  const newId = generateId();
+  const newSquare: Square = {
+    id: newId,
+    position: { x: 50, y: 50 + squares.length * 60 },
+    isUsed: false,
+    inputValue: 'text',
+    label: '',
+    placeholder: '',
+    options: [],
+    selectType: 'single',
+  };
+  setSquares(prev => [...prev, newSquare]);
+  return newSquare;
+}, [squares.length]);
+
+const updateSquareSelectType = useCallback((squareId: string, value: 'single' | 'multiple') => {
+  setSquares(prev => prev.map(square => 
+    square.id === squareId ? { ...square, selectType: value } : square
+  ));
+}, []);
 
   const updateSquareInput = useCallback((squareId: string, value: string) => {
     setSquares(prev => prev.map(square => 
@@ -103,6 +110,7 @@ export const useSquares = () => {
     availableSquares: getAvailableSquares(),
     createSquare,
     updateSquareInput,
+    updateSquareSelectType,
     updateSquareLabel,
     updateSquarePlaceholder,
     addSquareOption,

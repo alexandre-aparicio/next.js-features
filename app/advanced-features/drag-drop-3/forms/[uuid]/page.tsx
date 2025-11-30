@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { FormFieldRenderer } from './FormFieldRenderer';
 
 interface SquareOption {
   id: string;
@@ -16,6 +17,7 @@ interface FormField {
   placeholder: string;
   className: string;
   options?: SquareOption[];
+  selectType?: 'single' | 'multiple';
   validate?: {
     required?: boolean;
     min4?: boolean;
@@ -51,18 +53,13 @@ interface PendingSubmission {
   form_id: string;
   user_id?: string;
   session_id: string;
-  responses: { [key: string]: string };
+  responses: { [key: string]: string | string[] };
   timestamp: number;
   retryCount: number;
   ip_address?: string;
   user_agent?: string;
 }
 
-/**
- * Simple toast system (no libs) using CustomEvent.
- * showToast(message, type) -> dispatches a toast.
- * ToastContainer listens to events and displays them.
- */
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
   const ev = new CustomEvent('app-toast', { detail: { message, type } });
   window.dispatchEvent(ev);
@@ -75,7 +72,6 @@ function ToastContainer() {
     const handler = (e: any) => {
       const id = Date.now() + Math.floor(Math.random() * 1000);
       setToasts((prev) => [...prev, { id, message: e.detail.message, type: e.detail.type }]);
-      // auto remove after 3s
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
       }, 3000);
@@ -107,13 +103,13 @@ export default function FormViewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
-  const [formValues, setFormValues] = useState<{[key: string]: string}>({});
+  const [formValues, setFormValues] = useState<{[key: string]: string | string[]}>({});
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Helpers to read/write localStorage safely
   const storageKey = `pending_submissions_${uuid}`;
+  
   const readPendingFromStorage = (): PendingSubmission[] => {
     try {
       const stored = localStorage.getItem(storageKey);
@@ -123,6 +119,7 @@ export default function FormViewPage() {
       return [];
     }
   };
+
   const writePendingToStorage = (arr: PendingSubmission[]) => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(arr));
@@ -131,23 +128,18 @@ export default function FormViewPage() {
     }
   };
 
-  // Verificar conexión a internet y cargar submissions pendientes
   useEffect(() => {
     const checkOnlineStatus = () => {
       const online = navigator.onLine;
-
-      // show toast when status changes: get count in storage to ensure accurate number
       const storedCount = readPendingFromStorage().length;
 
       if (!online) {
-        // show info about cached items
         if (storedCount > 0) {
           showToast(`⚠️ Sin conexión. ${storedCount} formulario(s) almacenado(s) en caché.`, 'info');
         } else {
           showToast('⚠️ Sin conexión. Los formularios se guardarán localmente.', 'info');
         }
       } else {
-        // restored
         if (storedCount > 0) {
           showToast('📡 Conexión restaurada. Sincronizando formularios pendientes...', 'info');
         } else {
@@ -157,19 +149,15 @@ export default function FormViewPage() {
 
       setIsOnline(online);
       
-      // Si se recupera la conexión, intentar enviar pendientes (automático)
       if (online) {
-        // load pending from storage again (fresh) and set state, then process
         const stored = readPendingFromStorage();
         if (stored.length > 0) {
           setPendingSubmissions(stored);
-          // slight delay to allow UI update, but process immediately
           setTimeout(() => processPendingSubmissions(), 200);
         }
       }
     };
 
-    // Cargar submissions pendientes del localStorage
     const loadPendingSubmissions = () => {
       const stored = readPendingFromStorage();
       if (stored && stored.length > 0) {
@@ -177,18 +165,14 @@ export default function FormViewPage() {
       }
     };
 
-    // Verificar inicialmente
     checkOnlineStatus();
     loadPendingSubmissions();
 
-    // Configurar event listeners
     window.addEventListener('online', checkOnlineStatus);
     window.addEventListener('offline', checkOnlineStatus);
 
-    // Verificar cada 30 segundos
     const interval = setInterval(checkOnlineStatus, 30000);
 
-    // Cleanup
     return () => {
       window.removeEventListener('online', checkOnlineStatus);
       window.removeEventListener('offline', checkOnlineStatus);
@@ -202,9 +186,17 @@ export default function FormViewPage() {
     }
   }, [uuid]);
 
-  // Función para enviar a la API CORREGIDA
   const submitToAPI = async (submission: PendingSubmission): Promise<boolean> => {
     try {
+      const processedResponses: { [key: string]: string } = {};
+      Object.entries(submission.responses).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          processedResponses[key] = value.join(', ');
+        } else {
+          processedResponses[key] = value;
+        }
+      });
+
       const response = await fetch(`http://93.127.135.52:6011/form-responses/`, {
         method: 'POST',
         headers: {
@@ -214,7 +206,7 @@ export default function FormViewPage() {
           form_id: submission.form_id,
           user_id: submission.user_id,
           session_id: submission.session_id,
-          responses: submission.responses,
+          responses: processedResponses,
           ip_address: submission.ip_address || '',
           user_agent: submission.user_agent || navigator.userAgent
         }),
@@ -235,9 +227,7 @@ export default function FormViewPage() {
     }
   };
 
-  // Procesar submissions pendientes cuando hay conexión
   const processPendingSubmissions = async () => {
-    // load fresh from storage to avoid race conditions
     const stored = readPendingFromStorage();
     if (!navigator.onLine || stored.length === 0) return;
 
@@ -267,12 +257,10 @@ export default function FormViewPage() {
       }
     }
 
-    // Actualizar localStorage: solo quedan los fallidos
     const updatedPending = failedSubmissions;
     setPendingSubmissions(updatedPending);
     writePendingToStorage(updatedPending);
 
-    // Notify results
     if (successfulIndices.length > 0) {
       showToast(`✅ Se enviaron ${successfulIndices.length} formulario(s) pendientes`, 'success');
     }
@@ -300,12 +288,16 @@ export default function FormViewPage() {
       const data = await response.json();
       setForm(data);
       
-      // Inicializar valores del formulario
-      const initialValues: {[key: string]: string} = {};
+      const initialValues: {[key: string]: string | string[]} = {};
       data.form_data.forEach((page: FormPage) => {
         page.filas.forEach((row: FormRow) => {
           Object.keys(row.fields).forEach(fieldName => {
-            initialValues[fieldName] = '';
+            const field = row.fields[fieldName];
+            if (field.type === 'select' && field.selectType === 'multiple') {
+              initialValues[fieldName] = [];
+            } else {
+              initialValues[fieldName] = '';
+            }
           });
         });
       });
@@ -319,19 +311,16 @@ export default function FormViewPage() {
     }
   };
 
-  const handleInputChange = (fieldName: string, value: string) => {
+  const handleInputChange = (fieldName: string, value: string | string[]) => {
     setFormValues(prev => ({
       ...prev,
       [fieldName]: value
     }));
   };
 
-  // Función para guardar submission pendiente
   const savePendingSubmission = (submission: PendingSubmission) => {
     const newPendingSubmissions = [...readPendingFromStorage(), submission];
     setPendingSubmissions(newPendingSubmissions);
-    
-    // Guardar en localStorage
     writePendingToStorage(newPendingSubmissions);
     
     console.log('📦 Formulario guardado para envío offline');
@@ -341,29 +330,33 @@ export default function FormViewPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const filledFields = Object.values(formValues).filter(value => value.trim() !== '').length;
+    const filledFields = Object.values(formValues).filter(value => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      } else {
+        return value.trim() !== '';
+      }
+    }).length;
+    
     const totalFields = Object.keys(formValues).length;
 
-    // Validar que al menos un campo esté lleno
     if (filledFields === 0) {
       showToast('⚠️ Por favor, completa al menos un campo del formulario.', 'error');
       return;
     }
 
-    // Crear objeto de submission CORREGIDO
     const submission: PendingSubmission = {
       form_id: uuid,
-      user_id: 'usuario-actual', // Puedes obtener esto de tu sistema de auth
+      user_id: 'usuario-actual',
       session_id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       responses: formValues,
       timestamp: Date.now(),
       retryCount: 0,
-      ip_address: '', // Podrías obtenerlo con una API externa si es necesario
+      ip_address: '',
       user_agent: navigator.userAgent
     };
 
     if (isOnline) {
-      // Intentar enviar directamente
       setIsSubmitting(true);
       try {
         const success = await submitToAPI(submission);
@@ -371,33 +364,46 @@ export default function FormViewPage() {
         if (success) {
           showToast(`✅ Formulario enviado exitosamente (${filledFields}/${totalFields})`, 'success');
           
-          // Limpiar formulario después del envío exitoso
-          const resetValues: {[key: string]: string} = {};
+          const resetValues: {[key: string]: string | string[]} = {};
           Object.keys(formValues).forEach(key => {
-            resetValues[key] = '';
+            const field = findFieldConfig(key);
+            if (field && field.type === 'select' && field.selectType === 'multiple') {
+              resetValues[key] = [];
+            } else {
+              resetValues[key] = '';
+            }
           });
           setFormValues(resetValues);
         } else {
-          // Si falla el envío online, guardar como pendiente
           savePendingSubmission(submission);
           showToast(`⚠️ Error al enviar. Formulario guardado para reintentar. (${filledFields}/${totalFields})`, 'error');
         }
       } catch (error) {
-        // Si hay error, guardar como pendiente
         savePendingSubmission(submission);
         showToast(`⚠️ Error de conexión. Formulario guardado para enviar luego. (${filledFields}/${totalFields})`, 'error');
       } finally {
         setIsSubmitting(false);
       }
     } else {
-      // Guardar para envío offline
       savePendingSubmission(submission);
-      // read new length from storage
       const newCount = readPendingFromStorage().length;
       showToast(`📦 Formulario guardado. Pendientes: ${newCount}`, 'info');
     }
     
     console.log('Datos del formulario:', formValues);
+  };
+
+  const findFieldConfig = (fieldName: string): FormField | null => {
+    if (!form) return null;
+    
+    for (const page of form.form_data) {
+      for (const row of page.filas) {
+        if (row.fields[fieldName]) {
+          return row.fields[fieldName];
+        }
+      }
+    }
+    return null;
   };
 
   const formatDate = (dateString: string) => {
@@ -426,58 +432,12 @@ export default function FormViewPage() {
     );
   };
 
-  // Limpiar submissions pendientes (opcional)
   const clearPendingSubmissions = () => {
     setPendingSubmissions([]);
     writePendingToStorage([]);
     showToast('🗑️ Formularios pendientes eliminados', 'info');
   };
 
-  // Función para renderizar campos de selección (radio o select)
-  const renderSelectionField = (fieldName: string, fieldConfig: FormField) => {
-    const options = fieldConfig.options || [];
-    
-    // Si hay 4 o menos opciones, usar radio buttons
-    if (options.length <= 4) {
-      return (
-        <div className="space-y-2">
-          {options.map((option, index) => (
-            <label key={option.id || index} className="flex items-center space-x-3 cursor-pointer">
-              <input
-                type="radio"
-                name={fieldName}
-                value={option.value}
-                checked={formValues[fieldName] === option.value}
-                onChange={(e) => handleInputChange(fieldName, e.target.value)}
-                className="text-blue-600 focus:ring-blue-500"
-                required={fieldConfig.validate?.required}
-              />
-              <span className="text-gray-700">{option.label}</span>
-            </label>
-          ))}
-        </div>
-      );
-    }
-    
-    // Si hay más de 4 opciones, usar select
-    return (
-      <select
-        value={formValues[fieldName] || ''}
-        onChange={(e) => handleInputChange(fieldName, e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        required={fieldConfig.validate?.required}
-      >
-        <option value="">Selecciona una opción</option>
-        {options.map((option, index) => (
-          <option key={option.id || index} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    );
-  };
-
-  // Función para contar campos de selección
   const countSelectionFields = () => {
     if (!form) return 0;
     
@@ -572,15 +532,12 @@ export default function FormViewPage() {
             </div>
           </div>
           
-          {/* Información de submissions pendientes */}
           {pendingSubmissions.length > 0 && (
             <div className="mt-2 pt-2 border-t border-current border-opacity-20">
               <div className="flex justify-between items-center">
                 <span className="text-sm">
                   📦 {pendingSubmissions.length} formulario{pendingSubmissions.length !== 1 ? 's' : ''} pendiente{pendingSubmissions.length !== 1 ? 's' : ''}
                 </span>
-
-                {/* Se QUITA el botón "Reintentar Envío" porque la sincronización es automática */}
 
                 {isOnline && isSubmitting && (
                   <span className="text-xs">Enviando...</span>
@@ -663,64 +620,13 @@ export default function FormViewPage() {
               {form.form_data[activeTab]?.filas.map((fila, filaIndex) => (
                 <div key={filaIndex} className={fila.className}>
                   {Object.entries(fila.fields).map(([fieldName, fieldConfig]) => (
-                    <div key={fieldName} className={fieldConfig.className}>
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="mb-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            {fieldConfig.label}
-                            {fieldConfig.validate?.required && (
-                              <span className="text-red-500 ml-1">*</span>
-                            )}
-                          </label>
-                          
-                          {/* Renderizar campo según el tipo */}
-                          {fieldConfig.type === 'textarea' ? (
-                            <textarea
-                              value={formValues[fieldName] || ''}
-                              onChange={(e) => handleInputChange(fieldName, e.target.value)}
-                              placeholder={fieldConfig.placeholder}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical min-h-[100px]"
-                              required={fieldConfig.validate?.required}
-                            />
-                          ) : fieldConfig.type === 'select' && fieldConfig.options && fieldConfig.options.length > 0 ? (
-                            // Campo de selección (radio o select)
-                            renderSelectionField(fieldName, fieldConfig)
-                          ) : (
-                            // Campo de texto normal
-                            <input
-                              type={fieldConfig.type}
-                              value={formValues[fieldName] || ''}
-                              onChange={(e) => handleInputChange(fieldName, e.target.value)}
-                              placeholder={fieldConfig.placeholder}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              required={fieldConfig.validate?.required}
-                            />
-                          )}
-                        </div>
-                        
-                        <div className="text-xs text-gray-500 border-t pt-2">
-                          <div><strong>Nombre del campo:</strong> {fieldName}</div>
-                          <div><strong>Tipo:</strong> {fieldConfig.type}</div>
-                          
-                          {/* Mostrar información de opciones si es un select */}
-                          {fieldConfig.type === 'select' && fieldConfig.options && (
-                            <div className="mt-1">
-                              <strong>Opciones:</strong> {fieldConfig.options.length}
-                              {fieldConfig.options.length <= 4 && (
-                                <span className="text-green-600 ml-1">(usando radio buttons)</span>
-                              )}
-                              {fieldConfig.options.length > 4 && (
-                                <span className="text-blue-600 ml-1">(usando dropdown)</span>
-                              )}
-                            </div>
-                          )}
-                          
-                          {fieldConfig.validate?.required && (
-                            <div className="text-green-600 font-medium">Campo obligatorio</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <FormFieldRenderer
+                      key={fieldName}
+                      fieldName={fieldName}
+                      fieldConfig={fieldConfig}
+                      value={formValues[fieldName] || (fieldConfig.selectType === 'multiple' ? [] : '')}
+                      onChange={handleInputChange}
+                    />
                   ))}
                 </div>
               ))}
