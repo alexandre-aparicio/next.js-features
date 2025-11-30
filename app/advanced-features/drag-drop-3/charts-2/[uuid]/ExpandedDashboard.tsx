@@ -14,9 +14,6 @@ interface ExpandedDashboardProps {
   availableTitles: string[];
   formatFieldName: (field: string) => string;
   onToggleExpand: () => void;
-  onRemoveIcon: (index: number) => void;
-  onPageChange: (pageId: number) => void;
-  onAddPage: () => void;
   uuid: string | string[];
 }
 
@@ -28,9 +25,6 @@ export default function ExpandedDashboard({
   availableTitles,
   formatFieldName,
   onToggleExpand,
-  onRemoveIcon,
-  onPageChange,
-  onAddPage,
   uuid
 }: ExpandedDashboardProps) {
   return (
@@ -48,32 +42,20 @@ export default function ExpandedDashboard({
               <p className="text-gray-600">UUID: {uuid}</p>
             </div>
             
-            {/* Navegación de páginas en modo expandido */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                {dashboardPages.map((page) => (
-                  <button
-                    key={page.id}
-                    onClick={() => onPageChange(page.id)}
-                    className={`px-3 py-1 rounded-md text-sm transition-all duration-200 ${
-                      currentPage === page.id
-                        ? 'bg-white shadow-sm text-blue-600 font-medium'
-                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
-                    }`}
-                  >
-                    {page.name}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Botón para añadir nueva página */}
-              <button
-                onClick={onAddPage}
-                className="w-8 h-8 flex items-center justify-center text-green-600 hover:text-green-800 hover:bg-green-100 rounded transition-all duration-300 hover:scale-110"
-                title="Añadir nueva página"
-              >
-                <i className="ti ti-plus text-lg"></i>
-              </button>
+            {/* Navegación de páginas en modo expandido (solo lectura) */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {dashboardPages.map((page) => (
+                <div
+                  key={page.id}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    currentPage === page.id
+                      ? 'bg-white shadow-sm text-blue-600 font-medium'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  {page.name}
+                </div>
+              ))}
             </div>
           </div>
           
@@ -111,7 +93,7 @@ export default function ExpandedDashboard({
                 >
                   {iconInSpace ? (
                     <div className="flex flex-col h-full p-4">
-                      {/* Header con título y botón eliminar */}
+                      {/* Header con título (sin botón eliminar) */}
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex-1 min-w-0 mr-4">
                           <div className="text-lg font-semibold text-gray-800 truncate">
@@ -122,13 +104,7 @@ export default function ExpandedDashboard({
                             <span className="capitalize">{iconInSpace.type}</span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => onRemoveIcon(idx)}
-                          className="w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded transition-colors flex-shrink-0 hover:scale-110 transition-transform duration-200"
-                          title="Eliminar"
-                        >
-                          <i className="ti ti-x"></i>
-                        </button>
+                        {/* Se eliminó el botón de eliminar */}
                       </div>
                       
                       {/* Contenedor del mini gráfico */}
@@ -142,7 +118,7 @@ export default function ExpandedDashboard({
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <span className="text-gray-500 text-lg text-center">
-                        Arrastra un gráfico aquí
+                        Espacio vacío
                         <br />
                         <span className="text-sm">Espacio {idx + 1}</span>
                       </span>

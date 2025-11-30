@@ -44,6 +44,7 @@ export default function FormStatsPage() {
     setDashboardPages,
     setIsDashboardExpanded,
     setIsAnimating,
+    setCurrentPage,
     saveToSessionStorage,
     addNewPage,
     changePage
@@ -209,6 +210,19 @@ export default function FormStatsPage() {
     );
   };
 
+  const removePage = (pageId: number) => {
+  if (dashboardPages.length > 1) {
+    const updatedPages = dashboardPages.filter(page => page.id !== pageId);
+    setDashboardPages(updatedPages);
+    
+    if (currentPage === pageId) {
+      setCurrentPage(updatedPages[0].id);
+    }
+    
+    saveToSessionStorage(updatedPages);
+  }
+};
+
   const getAvailableIcons = (): ChartIcon[] => {
     if (!selectedField) return [];
     
@@ -246,19 +260,18 @@ export default function FormStatsPage() {
   // Vista expandida
   if (isDashboardExpanded) {
     return (
-      <ExpandedDashboard
-        dashboardPages={dashboardPages}
-        currentPage={currentPage}
-        isAnimating={isAnimating}
-        draggedIcons={draggedIcons}
-        availableTitles={availableTitles}
-        formatFieldName={formatFieldName}
-        onToggleExpand={toggleDashboardExpanded}
-        onRemoveIcon={removeIconFromSpace}
-        onPageChange={changePage}
-        onAddPage={addNewPage}
-        uuid={uuid}
-      />
+
+              <ExpandedDashboard
+          dashboardPages={dashboardPages}
+          currentPage={currentPage}
+          isAnimating={isAnimating}
+          draggedIcons={draggedIcons}
+          availableTitles={availableTitles}
+          formatFieldName={formatFieldName}
+          onToggleExpand={toggleDashboardExpanded}
+          uuid={uuid}
+        />
+
     );
   }
 
@@ -285,24 +298,25 @@ export default function FormStatsPage() {
               onIconClick={handleIconClick}
               onDragStart={handleDragStart}
             />
+      <DashboardRealTime
+  dashboardPages={dashboardPages}
+  currentPage={currentPage}
+  isAnimating={isAnimating}
+  draggedIcons={draggedIcons}
+  availableTitles={availableTitles}
+  formatFieldName={formatFieldName}
+  onPageChange={changePage}
+  onAddPage={addNewPage}
+  onRemovePage={removePage} // ← Nueva prop
+  onToggleExpand={toggleDashboardExpanded}
+  onRemoveIcon={removeIconFromSpace}
+  onDragOver={handleDragOver}
+  onDragLeave={handleDragLeave}
+  onDrop={handleDrop}
+  onTitleChange={handleTitleChange}
+  uuid={uuid}
+/>
 
-            <DashboardRealTime
-              dashboardPages={dashboardPages}
-              currentPage={currentPage}
-              isAnimating={isAnimating}
-              draggedIcons={draggedIcons}
-              availableTitles={availableTitles}
-              formatFieldName={formatFieldName}
-              onPageChange={changePage}
-              onAddPage={addNewPage}
-              onToggleExpand={toggleDashboardExpanded}
-              onRemoveIcon={removeIconFromSpace}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onTitleChange={handleTitleChange}
-              uuid={uuid}
-            />
           </div>
         ) : (
           <div className="bg-white p-6 rounded shadow">

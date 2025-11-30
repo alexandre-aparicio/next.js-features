@@ -1,225 +1,87 @@
-// /lib/hooks/useMiniCharts.ts
-import { useRef, useEffect } from "react";
-import { renderMiniBars } from "./miniCharts/barChartRenderer";
-import { renderMiniDonut } from "./miniCharts/donutChartRender";
+'use client';
 
-declare const window: any;
+import { useRef, useCallback } from 'react';
 
-export function useMiniCharts() {
+export const useMiniCharts = () => {
   const rootRefs = useRef<{ [key: string]: any }>({});
   const seriesRefs = useRef<{ [key: string]: any }>({});
 
-  const loadAmCharts = () => {
-    return new Promise<void>((resolve) => {
-      if (typeof window === "undefined") return resolve();
-
-      if (window.am5 && window.am5xy && window.am5percent && window.am5themes_Animated) {
-        return resolve();
+  // Función segura para limpiar gráficos
+  const safeDispose = useCallback((chartId: string) => {
+    try {
+      if (rootRefs.current[chartId]) {
+        console.log(`Limpiando gráfico: ${chartId}`);
+        rootRefs.current[chartId].dispose();
+        delete rootRefs.current[chartId];
       }
-
-      const scripts = [
-        { src: "https://cdn.amcharts.com/lib/5/index.js", key: "am5" },
-        { src: "https://cdn.amcharts.com/lib/5/xy.js", key: "am5xy" },
-        { src: "https://cdn.amcharts.com/lib/5/percent.js", key: "am5percent" },
-        { src: "https://cdn.amcharts.com/lib/5/themes/Animated.js", key: "am5themes_Animated" }
-      ];
-
-      let loaded = 0;
-      scripts.forEach(({ src, key }) => {
-        if (window[key]) { loaded++; if (loaded === scripts.length) resolve(); return; }
-        const script = document.createElement("script");
-        script.src = src; script.async = true;
-        script.onload = () => { loaded++; if (loaded === scripts.length) resolve(); };
-        document.head.appendChild(script);
-      });
-    });
-  };
-
-  const loadHierarchyCharts = () => {
-    return new Promise<void>((resolve) => {
-      if (typeof window === "undefined") return resolve();
-
-      if (window.am5 && window.am5hierarchy && window.am5themes_Animated) {
-        return resolve();
+      if (seriesRefs.current[chartId]) {
+        delete seriesRefs.current[chartId];
       }
-
-      const scripts = [
-        { src: "https://cdn.amcharts.com/lib/5/index.js", key: "am5" },
-        { src: "https://cdn.amcharts.com/lib/5/hierarchy.js", key: "am5hierarchy" },
-        { src: "https://cdn.amcharts.com/lib/5/themes/Animated.js", key: "am5themes_Animated" }
-      ];
-
-      let loaded = 0;
-      scripts.forEach(({ src, key }) => {
-        if (window[key]) { loaded++; if (loaded === scripts.length) resolve(); return; }
-        const script = document.createElement("script");
-        script.src = src; script.async = true;
-        script.onload = () => { loaded++; if (loaded === scripts.length) resolve(); };
-        document.head.appendChild(script);
-      });
-    });
-  };
-
-  // ------------------------------
-  // Dispose de gráficos
-  // ------------------------------
-  const safeDispose = (chartId: string) => {
-    if (rootRefs.current[chartId]) {
-      try {
-        if (!rootRefs.current[chartId].isDisposed()) {
-          rootRefs.current[chartId].dispose();
-        }
-      } catch (e) {}
-      rootRefs.current[chartId] = null;
-      seriesRefs.current[chartId] = null;
+    } catch (error) {
+      console.warn(`Error limpiando gráfico ${chartId}:`, error);
     }
-  };
+  }, []);
 
-  const disposeAllMiniCharts = () => {
-    Object.keys(rootRefs.current).forEach(chartId => safeDispose(chartId));
-    rootRefs.current = {};
-    seriesRefs.current = {};
-  };
-
-  useEffect(() => disposeAllMiniCharts, []);
-
-  const renderMiniTree = async (data: any[], fieldName: string, containerId: string) => {
-    await loadHierarchyCharts();
-    const { am5, am5hierarchy, am5themes_Animated } = window;
-    if (!am5 || !am5hierarchy || !am5themes_Animated) return;
-
-    const target = document.getElementById(containerId);
-    if (!target) return;
-    target.innerHTML = '';
-
-    safeDispose(containerId);
+  const renderMiniChart = useCallback(async (
+    type: string, 
+    data: any[], 
+    field: string, 
+    containerId: string
+  ) => {
+    if (!data || data.length === 0) {
+      console.warn('No hay datos para renderizar el gráfico');
+      return;
+    }
 
     try {
-      const root = am5.Root.new(containerId);
-      rootRefs.current[containerId] = root;
-      root.setThemes([am5themes_Animated.new(root)]);
-
-      const container = root.container.children.push(am5.Container.new(root, { width: am5.percent(100), height: am5.percent(100), layout: root.verticalLayout }));
-      const series = container.children.push(am5hierarchy.Treemap.new(root, {
-        singleBranchOnly: false,
-        downDepth: 1,
-        upDepth: -1,
-        initialDepth: 2,
-        valueField: "value",
-        categoryField: "name",
-        childDataField: "children",
-        nodePaddingOuter: 0,
-        nodePaddingInner: 0
-      }));
-
-      series.rectangles.template.setAll({ strokeWidth: 1, fillOpacity: 0.8 });
-
-      const hierarchicalData = { name: fieldName || "Root", children: data.map(item => ({ name: item.category, value: item.value })) };
-      series.data.setAll([hierarchicalData]);
-      seriesRefs.current[containerId] = series;
-
-      if (series.dataItems.length > 0) series.set("selectedDataItem", series.dataItems[0]);
-      series.appear(300, 100);
+      switch (type) {
+        case 'bar':
+          const { renderMiniBars } = await import('./miniCharts/barChartRenderer');
+          await renderMiniBars({
+            data,
+            fieldName: field,
+            containerId,
+            rootRefs,
+            seriesRefs,
+            safeDispose
+          });
+          break;
+        
+        case 'donut':
+          const { renderMiniDonut } = await import('./miniCharts/donutChartRenderer');
+          await renderMiniDonut({
+            data,
+            fieldName: field,
+            containerId,
+            rootRefs,
+            seriesRefs,
+            safeDispose
+          });
+          break;
+        
+        default:
+          console.warn(`Tipo de gráfico no soportado: ${type}`);
+          return;
+      }
     } catch (error) {
-      console.error('Error mini-tree:', error);
+      console.error(`Error renderizando mini chart ${type}:`, error);
     }
-  };
+  }, [safeDispose]);
 
-  const renderMiniVariablePie = async (data: any[], fieldName: string, containerId: string) => {
-    await loadAmCharts();
-    const { am5, am5percent, am5themes_Animated } = window;
-    if (!am5 || !am5percent || !am5themes_Animated) return;
-
-    const target = document.getElementById(containerId);
-    if (!target) return;
-    target.innerHTML = '';
-
+  const disposeChart = useCallback((containerId: string) => {
     safeDispose(containerId);
+  }, [safeDispose]);
 
-    try {
-      const root = am5.Root.new(containerId);
-      rootRefs.current[containerId] = root;
-      root.setThemes([am5themes_Animated.new(root)]);
+  const disposeAllMiniCharts = useCallback(() => {
+    console.log('Limpiando todos los mini gráficos');
+    Object.keys(rootRefs.current).forEach(containerId => {
+      safeDispose(containerId);
+    });
+  }, [safeDispose]);
 
-      const chart = root.container.children.push(am5percent.PieChart.new(root, { layout: root.verticalLayout, width: am5.percent(100), height: am5.percent(100) }));
-      const series = chart.series.push(am5percent.PieSeries.new(root, { alignLabels: true, calculateAggregates: true, valueField: "value", categoryField: "category", name: fieldName }));
-
-      series.slices.template.setAll({ strokeWidth: 2, stroke: am5.color(0xffffff) });
-      series.slices.template.adapters.add("radius", (radius: number, target: any) => {
-        let dataItem = target.dataItem;
-        let high = series.getPrivate("valueHigh");
-        if (dataItem) {
-          let value = target.dataItem.get("valueWorking", 0);
-          return radius * value / high;
-        }
-        return radius;
-      });
-
-      series.data.setAll(data.map(item => ({ value: item.value, category: item.category })));
-      seriesRefs.current[containerId] = series;
-
-      const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 10, marginBottom: 10 }));
-      legend.data.setAll(series.dataItems);
-      legend.labels.template.setAll({ fontSize: 8 });
-
-      series.appear(300, 100);
-    } catch (error) {
-      console.error('Error mini-variable pie:', error);
-    }
+  return {
+    renderMiniChart,
+    disposeChart,
+    disposeAllMiniCharts
   };
-
-  const renderMiniChart = async (type: string, data: any[], fieldName: string, containerId: string) => {
-    switch(type) {
-      case 'bar': 
-        return renderMiniBars({
-          data,
-          fieldName,
-          containerId,
-          rootRefs,
-          seriesRefs,
-          safeDispose
-        });
-      case 'donut': 
-        return renderMiniDonut({
-          data,
-          fieldName,
-          containerId,
-          rootRefs,
-          seriesRefs,
-          safeDispose
-        });
-      case 'tree': 
-        return renderMiniTree(data, fieldName, containerId);
-      case 'variable': 
-        return renderMiniVariablePie(data, fieldName, containerId);
-      case 'semi': 
-        return renderMiniDonut({
-          data,
-          fieldName,
-          containerId,
-          rootRefs,
-          seriesRefs,
-          safeDispose
-        });
-      default: 
-        return renderMiniBars({
-          data,
-          fieldName,
-          containerId,
-          rootRefs,
-          seriesRefs,
-          safeDispose
-        });
-    }
-  };
-
-  return { 
-    renderMiniChart, 
-    disposeAllMiniCharts, 
-    safeDispose, 
-    rootRefs, 
-    seriesRefs,
-    loadAmCharts,
-    loadHierarchyCharts
-  };
-}
+};

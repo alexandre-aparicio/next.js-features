@@ -75,6 +75,20 @@ export const useDashboardManager = (uuid: string | string[]) => {
     }, 300);
   };
 
+  // Eliminar página
+  const removePage = (pageId: number) => {
+    if (dashboardPages.length > 1) {
+      const updatedPages = dashboardPages.filter(page => page.id !== pageId);
+      setDashboardPages(updatedPages);
+      
+      if (currentPage === pageId) {
+        setCurrentPage(updatedPages[0].id);
+      }
+      
+      saveToSessionStorage(updatedPages);
+    }
+  };
+
   // Obtener la página actual
   const currentPageData = dashboardPages.find(page => page.id === currentPage) || dashboardPages[0];
   const draggedIcons = currentPageData.icons;
@@ -103,6 +117,7 @@ export const useDashboardManager = (uuid: string | string[]) => {
     // Funciones
     saveToSessionStorage,
     addNewPage,
-    changePage
+    changePage,
+    removePage // ← Nueva función añadida
   };
 };

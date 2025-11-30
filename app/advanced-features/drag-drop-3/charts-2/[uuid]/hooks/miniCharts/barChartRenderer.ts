@@ -1,4 +1,3 @@
-// /lib/hooks/miniCharts/barChartRenderer.ts
 import { RefObject } from "react";
 
 declare const window: any;
@@ -20,18 +19,36 @@ export const renderMiniBars = async ({
   seriesRefs,
   safeDispose
 }: BarChartRendererProps): Promise<void> => {
+  // Verificar que am5 esté disponible
+  if (!window.am5 || !window.am5xy || !window.am5themes_Animated) {
+    console.warn('amCharts no está disponible');
+    return;
+  }
+
   const { am5, am5xy, am5themes_Animated } = window;
-  if (!am5 || !am5xy || !am5themes_Animated) return;
+
+  // Verificar si ya existe un gráfico en este contenedor
+  if (rootRefs.current[containerId]) {
+    safeDispose(containerId);
+    // Pequeño delay para asegurar que la limpieza se complete
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
 
   const target = document.getElementById(containerId);
-  if (!target) return;
+  if (!target) {
+    console.warn(`Contenedor ${containerId} no encontrado`);
+    return;
+  }
+
+  // Limpiar el contenedor
   target.innerHTML = '';
 
-  safeDispose(containerId);
-
   try {
+    // Crear nueva raíz
     const root = am5.Root.new(containerId);
     rootRefs.current[containerId] = root;
+    
+    // Configurar tema
     root.setThemes([am5themes_Animated.new(root)]);
 
     const chart = root.container.children.push(
@@ -52,7 +69,7 @@ export const renderMiniBars = async ({
     // -----------------------------
     const xRenderer = am5xy.AxisRendererX.new(root, { 
       minGridDistance: 20,
-      inside: false // ⬅⬅⬅ se mueven los labels abajo
+      inside: false
     });
 
     xRenderer.grid.template.setAll({ visible: false });
@@ -98,7 +115,6 @@ export const renderMiniBars = async ({
         yAxis,
         valueYField: "value",
         categoryXField: "category",
-
         tooltip: am5.Tooltip.new(root, {
           labelText: "{categoryX}: {valueY}",  
           pointerOrientation: "vertical"
@@ -120,9 +136,15 @@ export const renderMiniBars = async ({
     series.data.setAll(data || []);
     seriesRefs.current[containerId] = series;
 
+    // Animaciones
     series.appear(300);
     chart.appear(300);
+
+    console.log(`Gráfico de barras creado en ${containerId}`);
+
   } catch (error) {
-    console.error('Error mini-bar:', error);
+    console.error('Error creando mini-bar chart:', error);
+    // Limpiar en caso de error
+    safeDispose(containerId);
   }
 };
