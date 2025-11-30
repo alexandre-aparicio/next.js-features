@@ -6,7 +6,6 @@ export const useMiniCharts = () => {
   const rootRefs = useRef<{ [key: string]: any }>({});
   const seriesRefs = useRef<{ [key: string]: any }>({});
 
-  // Función segura para limpiar gráficos
   const safeDispose = useCallback((chartId: string) => {
     try {
       if (rootRefs.current[chartId]) {
@@ -26,8 +25,15 @@ export const useMiniCharts = () => {
     type: string, 
     data: any[], 
     field: string, 
-    containerId: string
+    containerId: string,
+    responses?: any[] // ← Respuestas completas como parámetro opcional
   ) => {
+    console.log(`Renderizando mini chart ${type}:`, { 
+      dataLength: data?.length, 
+      field, 
+      responsesLength: responses?.length 
+    });
+
     if (!data || data.length === 0) {
       console.warn('No hay datos para renderizar el gráfico');
       return;
@@ -52,6 +58,34 @@ export const useMiniCharts = () => {
           await renderMiniDonut({
             data,
             fieldName: field,
+            containerId,
+            rootRefs,
+            seriesRefs,
+            safeDispose
+          });
+          break;
+
+        case 'xy':
+          // Para gráficos XY, usar las responses completas si están disponibles
+          const [xField, yField] = field.split('___');
+          const { renderMiniXYChart } = await import('./miniCharts/XYChartRenderer');
+          
+          // Usar responses si están disponibles, de lo contrario usar data
+          const dataToUse = responses && responses.length > 0 ? responses : data;
+          
+          console.log('Datos para gráfico XY:', {
+            usingResponses: !!responses,
+            dataToUseLength: dataToUse.length,
+            xField,
+            yField
+          });
+
+          await renderMiniXYChart({
+            responses: dataToUse, // ← Usar las respuestas completas
+            xField,
+            yField,
+            xFieldName: xField,
+            yFieldName: yField,
             containerId,
             rootRefs,
             seriesRefs,

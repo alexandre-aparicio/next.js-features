@@ -14,7 +14,7 @@ import DashboardRealTime from './DashboardRealTime';
 import ExpandedDashboard from './ExpandedDashboard';
 
 // Utils
-import { generateChartData, formatFieldName } from './utils/dataGenerators';
+import { generateChartData, formatFieldName, generateXYData } from './utils/dataGenerators';
 
 // Types
 import { ChartType, ChartIcon, DraggedIcon } from './types/types';
@@ -58,6 +58,7 @@ export default function FormStatsPage() {
     renderSemiCircle,
     renderForceDirected,
     renderMiniChart,
+    renderXYChart, // ← Asegúrate de que esta función existe en useChartManagement
     cleanupMainCharts,
     cleanupAllCharts,
     disposeAllMiniCharts
@@ -66,6 +67,20 @@ export default function FormStatsPage() {
   const [selectedIcon, setSelectedIcon] = useState<ChartType>('bar');
   const dragIcon = useRef<DraggedIcon | null>(null);
 
+  // Estados para gráfico XY
+  const [xyChartActive, setXYChartActive] = useState(false);
+  const [selectedXField, setSelectedXField] = useState<string>('');
+  const [selectedYField, setSelectedYField] = useState<string>('');
+  const [activeXField, setActiveXField] = useState<string>('');
+  const [activeYField, setActiveYField] = useState<string>('');
+
+  const handleFieldDrop = (field: string, axis: 'x' | 'y') => {
+  if (axis === 'x') {
+    setSelectedXField(field);
+  } else {
+    setSelectedYField(field);
+  }
+};
   // Efectos principales
   useEffect(() => {
     if (uuid) fetchResponses();
@@ -76,24 +91,37 @@ export default function FormStatsPage() {
   }, []);
 
   // Renderizado de mini gráficos
-  useEffect(() => {
-    if (isAnimating) return;
-    
-    draggedIcons.forEach((icon, index) => {
-      if (icon) {
-        const data = generateChartData(responses, icon.field, 12);
-        const containerId = `dashboard-chart-${currentPage}-${index}`;
-        
-        setTimeout(() => {
-          renderMiniChart(icon.type, data, icon.field, containerId);
-        }, 100);
+ // En tu componente principal - actualiza el useEffect de mini gráficos
+useEffect(() => {
+  if (isAnimating) return;
+  
+  draggedIcons.forEach((icon, index) => {
+    if (icon) {
+      let data;
+      let chartType = icon.type;
+      
+      // Si es un gráfico XY, usar las respuestas completas
+      if (icon.type === 'xy') {
+        // Para XY, pasar las respuestas completas en lugar de datos pre-procesados
+        data = responses; // ← Pasar las respuestas completas
+        chartType = 'xy';
+      } else {
+        // Gráfico normal de un solo campo
+        data = generateChartData(responses, icon.field, 12);
       }
-    });
-  }, [draggedIcons, currentPage, isAnimating, responses]);
+      
+      const containerId = `dashboard-chart-${currentPage}-${index}`;
+      
+      setTimeout(() => {
+        renderMiniChart(chartType, data, icon.field, containerId, responses);
+      }, 100);
+    }
+  });
+}, [draggedIcons, currentPage, isAnimating, responses]);
 
-  // Renderizado de gráfico principal
+  // Renderizado de gráfico principal (campo individual)
   useEffect(() => {
-    if (!selectedField || formFields.length === 0 || responses.length === 0) return;
+    if (!selectedField || formFields.length === 0 || responses.length === 0 || xyChartActive) return;
 
     const data = generateChartData(responses, selectedField, 20);
     cleanupMainCharts();
@@ -119,14 +147,71 @@ export default function FormStatsPage() {
         console.error('Error renderizando gráfico:', err);
       }
     }, 200);
-  }, [selectedField, selectedIcon, responses]);
+  }, [selectedField, selectedIcon, responses, xyChartActive]);
+
+  // Renderizado de gráfico XY
+  useEffect(() => {
+    if (xyChartActive && activeXField && activeYField && responses.length > 0) {
+      cleanupMainCharts();
+      
+      setTimeout(async () => {
+        try {
+          const xyData = generateXYData(responses, activeXField, activeYField);
+          await renderXYChart(
+            xyData, 
+            activeXField, 
+            activeYField,
+            formatFieldName(activeXField),
+            formatFieldName(activeYField)
+          );
+        } catch (err) {
+          console.error('Error renderizando gráfico XY:', err);
+          setXYChartActive(false);
+        }
+      }, 200);
+    }
+  }, [xyChartActive, activeXField, activeYField, responses]);
 
   // Handlers
-  const handleIconClick = (iconName: ChartType) => setSelectedIcon(iconName);
+  const handleIconClick = (iconName: ChartType) => {
+    setSelectedIcon(iconName);
+    setXYChartActive(false);
+  };
   
   const handleFieldClick = (field: string) => {
     setSelectedField(field);
     setSelectedIcon('bar');
+    setXYChartActive(false);
+    setSelectedXField('');
+    setSelectedYField('');
+  };
+
+  const handleXFieldChange = (field: string) => {
+    setSelectedXField(field);
+    setXYChartActive(false);
+    setSelectedField('');
+  };
+
+  const handleYFieldChange = (field: string) => {
+    setSelectedYField(field);
+    setXYChartActive(false);
+    setSelectedField('');
+  };
+
+  const handleApplyXYSelection = (xField: string, yField: string) => {
+    setActiveXField(xField);
+    setActiveYField(yField);
+    setXYChartActive(true);
+    setSelectedField('');
+  };
+
+  const handleResetXYSelection = () => {
+    setXYChartActive(false);
+    setSelectedXField('');
+    setSelectedYField('');
+    setActiveXField('');
+    setActiveYField('');
+    cleanupMainCharts();
   };
 
   // Drag & Drop
@@ -211,17 +296,17 @@ export default function FormStatsPage() {
   };
 
   const removePage = (pageId: number) => {
-  if (dashboardPages.length > 1) {
-    const updatedPages = dashboardPages.filter(page => page.id !== pageId);
-    setDashboardPages(updatedPages);
-    
-    if (currentPage === pageId) {
-      setCurrentPage(updatedPages[0].id);
+    if (dashboardPages.length > 1) {
+      const updatedPages = dashboardPages.filter(page => page.id !== pageId);
+      setDashboardPages(updatedPages);
+      
+      if (currentPage === pageId) {
+        setCurrentPage(updatedPages[0].id);
+      }
+      
+      saveToSessionStorage(updatedPages);
     }
-    
-    saveToSessionStorage(updatedPages);
-  }
-};
+  };
 
   const getAvailableIcons = (): ChartIcon[] => {
     if (!selectedField) return [];
@@ -260,18 +345,16 @@ export default function FormStatsPage() {
   // Vista expandida
   if (isDashboardExpanded) {
     return (
-
-              <ExpandedDashboard
-          dashboardPages={dashboardPages}
-          currentPage={currentPage}
-          isAnimating={isAnimating}
-          draggedIcons={draggedIcons}
-          availableTitles={availableTitles}
-          formatFieldName={formatFieldName}
-          onToggleExpand={toggleDashboardExpanded}
-          uuid={uuid}
-        />
-
+      <ExpandedDashboard
+        dashboardPages={dashboardPages}
+        currentPage={currentPage}
+        isAnimating={isAnimating}
+        draggedIcons={draggedIcons}
+        availableTitles={availableTitles}
+        formatFieldName={formatFieldName}
+        onToggleExpand={toggleDashboardExpanded}
+        uuid={uuid}
+      />
     );
   }
 
@@ -289,6 +372,7 @@ export default function FormStatsPage() {
         {formFields.length > 0 ? (
           <div className="grid grid-cols-4 gap-4 h-[calc(100vh-120px)]">
             <ChartControls
+              onFieldDrop={handleFieldDrop}
               selectedField={selectedField}
               selectedIcon={selectedIcon}
               formFields={formFields}
@@ -297,26 +381,34 @@ export default function FormStatsPage() {
               onFieldClick={handleFieldClick}
               onIconClick={handleIconClick}
               onDragStart={handleDragStart}
+              selectedXField={selectedXField}
+              selectedYField={selectedYField}
+              onXFieldChange={handleXFieldChange}
+              onYFieldChange={handleYFieldChange}
+              onApplyXYSelection={handleApplyXYSelection}
+              xyChartActive={xyChartActive}
+              activeXField={activeXField}
+              activeYField={activeYField}
+              onResetXYSelection={handleResetXYSelection}
             />
-      <DashboardRealTime
-  dashboardPages={dashboardPages}
-  currentPage={currentPage}
-  isAnimating={isAnimating}
-  draggedIcons={draggedIcons}
-  availableTitles={availableTitles}
-  formatFieldName={formatFieldName}
-  onPageChange={changePage}
-  onAddPage={addNewPage}
-  onRemovePage={removePage} // ← Nueva prop
-  onToggleExpand={toggleDashboardExpanded}
-  onRemoveIcon={removeIconFromSpace}
-  onDragOver={handleDragOver}
-  onDragLeave={handleDragLeave}
-  onDrop={handleDrop}
-  onTitleChange={handleTitleChange}
-  uuid={uuid}
-/>
-
+            <DashboardRealTime
+              dashboardPages={dashboardPages}
+              currentPage={currentPage}
+              isAnimating={isAnimating}
+              draggedIcons={draggedIcons}
+              availableTitles={availableTitles}
+              formatFieldName={formatFieldName}
+              onPageChange={changePage}
+              onAddPage={addNewPage}
+              onRemovePage={removePage}
+              onToggleExpand={toggleDashboardExpanded}
+              onRemoveIcon={removeIconFromSpace}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onTitleChange={handleTitleChange}
+              uuid={uuid}
+            />
           </div>
         ) : (
           <div className="bg-white p-6 rounded shadow">
