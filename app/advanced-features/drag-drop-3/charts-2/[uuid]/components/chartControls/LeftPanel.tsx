@@ -6,7 +6,7 @@ import {
   ChartIcon, 
   DraggedIcon,
   FormResponse 
-} from './types/types';
+} from '../../types/types';
 
 interface ChartControlsProps {
   selectedField: string;
@@ -28,11 +28,16 @@ interface ChartControlsProps {
   onResetXYSelection?: () => void;
   onFieldDrop?: (field: string, axis: 'x' | 'y') => void;
   responses: FormResponse[];
+  selectedIconXy: XYChartType; // ← Agregar esta prop
+  onXYIconClick: (iconName: XYChartType) => void;
 }
 
 interface PageFields {
   [pageName: string]: string[];
 }
+
+// Definir los tipos de gráficos XY disponibles
+type XYChartType = 'xyChart' | 'xyChart-2' | 'xyChart-3';
 
 export default function ChartControls({
   selectedField,
@@ -53,12 +58,16 @@ export default function ChartControls({
   activeYField = '',
   onResetXYSelection,
   onFieldDrop,
+  selectedIconXy, 
+  onXYIconClick, 
   responses
 }: ChartControlsProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [pageFields, setPageFields] = useState<PageFields>({});
   const [pageTabs, setPageTabs] = useState<string[]>(['all']);
-
+  const handleXYTypeSelect = (type: XYChartType) => {
+    onXYIconClick(type); // ← Usar la prop del padre
+  };
   // Organizar campos por página
   useEffect(() => {
     const pages: PageFields = { all: formFields };
@@ -113,18 +122,40 @@ export default function ChartControls({
     }
   };
 
-  const handleXYDragStart = (e: React.DragEvent) => {
+  // Función para obtener el icono según el tipo seleccionado
+  const getXYIcon = (type: XYChartType): string => {
+    switch (type) {
+      case 'xyChart': return 'ti ti-chart-scatter';
+      case 'xyChart-2': return 'ti ti-chart-line';
+      case 'xyChart-3': return 'ti ti-chart-bar';
+      default: return 'ti ti-chart-scatter';
+    }
+  };
+
+  // Función para obtener el título según el tipo seleccionado
+  const getXYTitle = (type: XYChartType): string => {
+    switch (type) {
+      case 'xyChart': return 'Dispersión';
+      case 'xyChart-2': return 'Líneas';
+      case 'xyChart-3': return 'Barras';
+      default: return 'Dispersión';
+    }
+  };
+
+  const handleXYDragStart = (e: React.DragEvent, type: XYChartType) => {
     if (!canDragXY) return;
     
     const dragData: DraggedIcon = {
-      icon: 'ti ti-chart-scatter',
+      icon: getXYIcon(type),
       field: `${activeXField}___${activeYField}`,
-      type: 'xy',
-      title: `XY: ${formatFieldName(activeXField)} vs ${formatFieldName(activeYField)}`
+      type: 'xy', // Mantener el tipo original 'xy' para que funcione
+      title: `${getXYTitle(type)}: ${formatFieldName(activeXField)} vs ${formatFieldName(activeYField)}`
     };
     
     e.dataTransfer.setData('application/json', JSON.stringify(dragData));
   };
+
+
 
   // Handler simplificado para eliminar campos X/Y - SOLO resetear la configuración local
   const handleRemoveXField = (e: React.MouseEvent) => {
@@ -258,30 +289,58 @@ export default function ChartControls({
   </div>
 </div>
 
-        {/* Estado de preparación del gráfico */}
-        {showXYReady && (
-          <div className="mb-2 p-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-            <div className="flex items-center gap-1">
-              <i className="ti ti-check text-blue-600 text-xs"></i>
-              <span className="truncate">
-                {formatFieldName(selectedXField)} vs {formatFieldName(selectedYField)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Botón para arrastrar gráfico XY activo */}
+        {/* TRES BOTONES VERDES INDEPENDIENTES */}
         {canDragXY && (
           <div className="mb-2">
-            <button
-              draggable
-              onDragStart={handleXYDragStart}
-              className="w-full py-1 px-2 rounded text-xs font-medium bg-green-500 hover:bg-green-600 text-white cursor-grab active:cursor-grabbing transition-all duration-200 shadow-sm flex items-center justify-center gap-1"
-              title="Arrastra al dashboard para añadir este gráfico XY"
-            >
-              <i className="ti ti-hand-grab text-xs"></i>
-              Arrastrar al Dashboard
-            </button>
+            <div className="grid grid-cols-3 gap-2">
+              {/* Botón 1: Scatter */}
+              <button
+                draggable
+                onDragStart={(e) => handleXYDragStart(e, 'xyChart')}
+                onClick={() => handleXYTypeSelect('xyChart')}
+                className={`w-full py-1 px-2 rounded text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing ${
+                  selectedIconXy === 'xyChart'
+                    ? 'bg-green-600 text-white border-2 border-green-700 shadow-md'
+                    : 'bg-green-500 hover:bg-green-600 text-white border border-green-600 shadow-sm'
+                }`}
+                title="Arrastra al dashboard para añadir gráfico de dispersión"
+              >
+                <i className="ti ti-chart-scatter text-xs"></i>
+                Dispersión
+              </button>
+
+              {/* Botón 2: Líneas */}
+              <button
+                draggable
+                onDragStart={(e) => handleXYDragStart(e, 'xyChart-2')}
+                onClick={() => handleXYTypeSelect('xyChart-2')}
+                className={`w-full py-1 px-2 rounded text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing ${
+                  selectedIconXy === 'xyChart-2'
+                    ? 'bg-green-600 text-white border-2 border-green-700 shadow-md'
+                    : 'bg-green-500 hover:bg-green-600 text-white border border-green-600 shadow-sm'
+                }`}
+                title="Arrastra al dashboard para añadir gráfico de líneas"
+              >
+                <i className="ti ti-chart-line text-xs"></i>
+                Líneas
+              </button>
+
+              {/* Botón 3: Barras */}
+              <button
+                draggable
+                onDragStart={(e) => handleXYDragStart(e, 'xyChart-3')}
+                onClick={() => handleXYTypeSelect('xyChart-3')}
+                className={`w-full py-1 px-2 rounded text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing ${
+                  selectedIconXy === 'xyChart-3'
+                    ? 'bg-green-600 text-white border-2 border-green-700 shadow-md'
+                    : 'bg-green-500 hover:bg-green-600 text-white border border-green-600 shadow-sm'
+                }`}
+                title="Arrastra al dashboard para añadir gráfico de barras"
+              >
+                <i className="ti ti-chart-bar text-xs"></i>
+                Barras
+              </button>
+            </div>
           </div>
         )}
 
@@ -308,9 +367,7 @@ export default function ChartControls({
 
         {/* Campos disponibles para arrastrar - Organizados por pestaña */}
         <div className="mb-2">
-          <h3 className="text-xs font-semibold text-gray-700 mb-1">
-            Campos {activeTab !== 'all' && `- ${activeTab}`}
-          </h3>
+          
           <div className="flex flex-row flex-wrap gap-1 max-h-20 overflow-y-auto">
             {currentFields.map((f) => (
   <div
@@ -344,55 +401,44 @@ export default function ChartControls({
 
         {/* Tipos de Gráficos Individuales */}
         {selectedField && !xyChartActive && (
-          <div className="mt-2">
-            <h3 className="text-xs font-semibold text-gray-700 mb-1">Tipos</h3>
-            <div className="flex flex-row flex-wrap gap-1">
-              {availableIcons.map((icon) => (
-                <button
-                  key={icon.name}
-                  draggable={!icon.disabled}
-                  onDragStart={(e) => onDragStart(e, { 
-                    icon: icon.icon, 
-                    type: icon.name, 
-                    title: icon.title 
-                  })}
-                  onClick={() => onIconClick(icon.name)}
-                  className={`px-2 py-1 border text-xxl transition-all duration-200 flex items-center gap-1 flex-shrink-0 ${
-                    icon.disabled 
-                      ? 'cursor-not-allowed opacity-30 border-gray-200 bg-gray-100 text-gray-400' 
-                      : selectedIcon === icon.name 
-                        ? 'border-blue-500 bg-blue-100 text-blue-600 cursor-pointer' 
-                        : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-grab active:cursor-grabbing'
-                  }`}
-                  title={icon.disabled ? `${icon.title} (Ya asignado)` : icon.title}
-                  disabled={icon.disabled}
-                >
-                  <i className={icon.icon}></i>
-                  
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+  <div className="mt-2">
+    <h3 className="text-xs font-semibold text-gray-700 mb-1">Tipos</h3>
+    <div className="grid grid-cols-8 gap-1">
+      {availableIcons.map((icon) => (
+        <button
+          key={icon.name}
+          draggable={!icon.disabled}
+          onDragStart={(e) => onDragStart(e, { 
+            icon: icon.icon, 
+            type: icon.name, 
+            title: icon.title 
+          })}
+          onClick={() => onIconClick(icon.name)}
+          className={`aspect-square w-full border text-sm transition-all duration-200 flex items-center justify-center ${
+            icon.disabled 
+              ? 'cursor-not-allowed opacity-30 border-gray-200 bg-gray-100 text-gray-400' 
+              : selectedIcon === icon.name 
+                ? 'border-blue-500 bg-blue-100 text-blue-600 cursor-pointer' 
+                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-grab active:cursor-grabbing'
+          }`}
+          title={icon.disabled ? `${icon.title} (Ya asignado)` : icon.title}
+          disabled={icon.disabled}
+        >
+          <i className={icon.icon}></i>
+        </button>
+      ))}
+    </div>
+  </div>
+)}
 
-        {/* Información de estado */}
-        {xyChartActive && (
-          <div className="mt-1 p-1.5 bg-green-50 border border-green-200 rounded text-xs text-green-700">
-            <div className="flex items-center gap-1">
-              <i className="ti ti-check text-green-600 text-xs"></i>
-              <div className="truncate">
-                <span className="font-medium">{formatFieldName(activeXField)} vs {formatFieldName(activeYField)}</span>
-              </div>
-            </div>
-          </div>
-        )}
+        
       </div>
 
       {/* Vista previa del gráfico */}
       <div className="flex-1 border-t pt-2">
         <h3 className="text-sm font-semibold mb-1 text-center text-gray-800">
           {showIndividualChart ? `${formatFieldName(selectedField)}` : 
-           showXYChart ? `${formatFieldName(activeXField)} vs ${formatFieldName(activeYField)}` :
+           showXYChart ? `${formatFieldName(activeXField)} vs ${formatFieldName(activeYField)} (${getXYTitle(selectedIconXy)})` :
            showXYReady ? `${formatFieldName(selectedXField)} vs ${formatFieldName(selectedYField)}` :
            'Vista previa'}
         </h3>
@@ -408,7 +454,10 @@ export default function ChartControls({
             </div>
           ) : (showXYChart || showXYReady) ? (
             <div className="w-full h-full">
-              <div id="xyChart" style={{ width: '100%', height: '100%' }} />
+              {/* Renderizar diferentes gráficos XY según el tipo seleccionado */}
+              {selectedIconXy === 'xyChart' && <div id="xyChart" style={{ width: '100%', height: '100%' }} />}
+              {selectedIconXy === 'xyChart-2' && <div id="xyChart-2" style={{ width: '100%', height: '100%' }} />}
+              {selectedIconXy === 'xyChart-3' && <div id="xyChart-3" style={{ width: '100%', height: '100%' }} />}
             </div>
           ) : (
             <div className="flex items-center justify-center h-full border border-dashed border-gray-300 rounded w-full">

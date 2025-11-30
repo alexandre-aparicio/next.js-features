@@ -7,7 +7,9 @@ import { useVariableRadiusPieChart } from './useVariableRadiusPieChart';
 import { useSemiCirclePieChart } from './useSemiCirclePieChart';
 import { useForceDirectedLinksChart } from './useForceDirectedLinksChart';
 import { useMiniCharts } from './useMiniCharts';
-import { useXYChart } from './useXYChart'; 
+import { useXYChart } from './useXYChart/useXYChart'; 
+import { useXYChart2 } from './useXYChart/useXYChart2'; 
+import { useXYChart3 } from './useXYChart/useXYChart3'; 
 
 export const useChartManagement = () => {
   // Hooks para gráficos principales (vista previa lateral)
@@ -17,9 +19,9 @@ export const useChartManagement = () => {
   const variableRadiusPieChart = useVariableRadiusPieChart();
   const semiCirclePieChart = useSemiCirclePieChart();
   const forceDirectedChart = useForceDirectedLinksChart();
-  const xyChart = useXYChart(); // Nuevo hook para gráfico XY principal
-
-  // Hook para mini gráficos (dashboard con drag & drop)
+  const xyChart = useXYChart(); 
+  const xyChart2 = useXYChart2(); 
+  const xyChart3 = useXYChart3();
   const miniCharts = useMiniCharts();
 
   const cleanupMainCharts = () => {
@@ -30,7 +32,9 @@ export const useChartManagement = () => {
       variableRadiusPieChart.disposeVariableRadiusPie();
       semiCirclePieChart.disposeSemiCircle();
       forceDirectedChart.disposeForceDirected();
-      xyChart.disposeXYChart(); // Limpiar gráfico XY principal
+      xyChart.disposeXYChart(); // Limpiar gráfico XY 1
+      xyChart2.disposeXYChart2(); // Limpiar gráfico XY 2
+      xyChart3.disposeXYChart3(); // Limpiar gráfico XY 3
     } catch (err) {
       console.warn('Error cleaning up main charts:', err);
     }
@@ -59,8 +63,10 @@ export const useChartManagement = () => {
     renderSemiCircle: semiCirclePieChart.renderSemiCircle,
     renderForceDirected: forceDirectedChart.renderForceDirected,
     
-    // Gráfico XY principal
-    renderXYChart: xyChart.renderXYChart,
+    // Gráficos XY principales
+    renderXYChart: xyChart.renderXYChart,        // XY 1 - Dispersión
+    renderXYChart2: xyChart2.renderXYChart2,     // XY 2 - Líneas
+    renderXYChart3: xyChart3.renderXYChart3,     // XY 3 - Barras
     
     // ======================================
     // FUNCIONES PARA MINI GRÁFICOS
@@ -68,20 +74,14 @@ export const useChartManagement = () => {
     // ======================================
     renderMiniChart: miniCharts.renderMiniChart,
     
-    // ======================================
-    // FUNCIONES DE LIMPIEZA
-    // ======================================
-    
-    // Limpiar solo gráficos principales
+
     cleanupMainCharts,
-    
-    // Limpiar gráfico XY específico
+
     disposeXYChart: xyChart.disposeXYChart,
-    
-    // Limpiar todos los gráficos (principales + mini)
+    disposeXYChart2: xyChart2.disposeXYChart2,
+    disposeXYChart3: xyChart3.disposeXYChart3,
     cleanupAllCharts,
-    
-    // Limpiar solo mini gráficos del dashboard
+
     disposeAllMiniCharts: miniCharts.disposeAllMiniCharts
   };
 };

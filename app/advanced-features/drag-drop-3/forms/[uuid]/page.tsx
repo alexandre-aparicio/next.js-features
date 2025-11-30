@@ -49,11 +49,18 @@ interface FormData {
   created_by: string;
 }
 
+// Nueva interfaz para respuestas organizadas por página
+interface PageResponses {
+  [pageName: string]: {
+    [fieldName: string]: string | string[];
+  };
+}
+
 interface PendingSubmission {
   form_id: string;
   user_id?: string;
   session_id: string;
-  responses: { [key: string]: string | string[] };
+  responses: PageResponses; // Cambiado para organizar por páginas
   timestamp: number;
   retryCount: number;
   ip_address?: string;
@@ -128,6 +135,42 @@ export default function FormViewPage() {
     }
   };
 
+  // Función para organizar las respuestas por páginas
+  const organizeResponsesByPage = (responses: {[key: string]: string | string[]}): PageResponses => {
+    if (!form) return {};
+
+    const pageResponses: PageResponses = {};
+
+    // Inicializar estructura de páginas
+    form.form_data.forEach(page => {
+      pageResponses[page.pagina] = {};
+    });
+
+    // Organizar respuestas por página
+    Object.entries(responses).forEach(([fieldName, value]) => {
+      const fieldPage = findFieldPage(fieldName);
+      if (fieldPage) {
+        pageResponses[fieldPage][fieldName] = value;
+      }
+    });
+
+    return pageResponses;
+  };
+
+  // Función para encontrar a qué página pertenece un campo
+  const findFieldPage = (fieldName: string): string | null => {
+    if (!form) return null;
+    
+    for (const page of form.form_data) {
+      for (const row of page.filas) {
+        if (row.fields[fieldName]) {
+          return page.pagina;
+        }
+      }
+    }
+    return null;
+  };
+
   useEffect(() => {
     const checkOnlineStatus = () => {
       const online = navigator.onLine;
@@ -188,13 +231,18 @@ export default function FormViewPage() {
 
   const submitToAPI = async (submission: PendingSubmission): Promise<boolean> => {
     try {
-      const processedResponses: { [key: string]: string } = {};
-      Object.entries(submission.responses).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          processedResponses[key] = value.join(', ');
-        } else {
-          processedResponses[key] = value;
-        }
+      // Procesar respuestas manteniendo la estructura por páginas
+      const processedResponses: { [pageName: string]: { [key: string]: string } } = {};
+      
+      Object.entries(submission.responses).forEach(([pageName, pageFields]) => {
+        processedResponses[pageName] = {};
+        Object.entries(pageFields).forEach(([key, value]) => {
+          if (Array.isArray(value)) {
+            processedResponses[pageName][key] = value.join(', ');
+          } else {
+            processedResponses[pageName][key] = value;
+          }
+        });
       });
 
       const response = await fetch(`http://93.127.135.52:6011/form-responses/`, {
@@ -206,9 +254,10 @@ export default function FormViewPage() {
           form_id: submission.form_id,
           user_id: submission.user_id,
           session_id: submission.session_id,
-          responses: processedResponses,
+          responses: processedResponses, // Ahora organizado por páginas
           ip_address: submission.ip_address || '',
-          user_agent: submission.user_agent || navigator.userAgent
+          user_agent: submission.user_agent || navigator.userAgent,
+          submitted_at: new Date().toISOString()
         }),
       });
 
@@ -345,11 +394,14 @@ export default function FormViewPage() {
       return;
     }
 
+    // Organizar respuestas por páginas antes de enviar
+    const organizedResponses = organizeResponsesByPage(formValues);
+
     const submission: PendingSubmission = {
       form_id: uuid,
       user_id: 'usuario-actual',
       session_id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      responses: formValues,
+      responses: organizedResponses, // Usar respuestas organizadas por páginas
       timestamp: Date.now(),
       retryCount: 0,
       ip_address: '',
@@ -390,7 +442,7 @@ export default function FormViewPage() {
       showToast(`📦 Formulario guardado. Pendientes: ${newCount}`, 'info');
     }
     
-    console.log('Datos del formulario:', formValues);
+    console.log('Datos del formulario organizados por páginas:', organizedResponses);
   };
 
   const findFieldConfig = (fieldName: string): FormField | null => {
@@ -450,6 +502,21 @@ export default function FormViewPage() {
     }, 0);
   };
 
+  // Función para mostrar información de las páginas y campos
+  const getPageFieldInfo = () => {
+    if (!form) return [];
+    
+    return form.form_data.map(page => ({
+      pageName: page.pagina,
+      fieldCount: page.filas.reduce((total, row) => total + Object.keys(row.fields).length, 0),
+      filledCount: Object.keys(formValues).filter(fieldName => {
+        const value = formValues[fieldName];
+        const isFilled = Array.isArray(value) ? value.length > 0 : value.trim() !== '';
+        return isFilled && findFieldPage(fieldName) === page.pagina;
+      }).length
+    }));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -504,6 +571,8 @@ export default function FormViewPage() {
       </div>
     );
   }
+
+  const pageFieldInfo = getPageFieldInfo();
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -612,9 +681,14 @@ export default function FormViewPage() {
 
           {/* Contenido del formulario */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-              {form.form_data[activeTab]?.pagina}
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-700">
+                {form.form_data[activeTab]?.pagina}
+              </h2>
+              <div className="text-sm text-gray-500">
+                {pageFieldInfo[activeTab]?.filledCount} de {pageFieldInfo[activeTab]?.fieldCount} campos completados
+              </div>
+            </div>
             
             <div className="space-y-6">
               {form.form_data[activeTab]?.filas.map((fila, filaIndex) => (
@@ -704,8 +778,27 @@ export default function FormViewPage() {
               <p><strong>Última actualización:</strong> {formatDate(form.updated_at)}</p>
             </div>
           </div>
+          
+          {/* Información por página */}
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <h4 className="font-medium text-blue-800 mb-2">Progreso por página:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+              {pageFieldInfo.map((pageInfo, index) => (
+                <div key={index} className={`p-2 rounded ${
+                  activeTab === index ? 'bg-blue-100 border border-blue-300' : 'bg-blue-50'
+                }`}>
+                  <div className="font-medium">{pageInfo.pageName}</div>
+                  <div className="text-blue-600">
+                    {pageInfo.filledCount}/{pageInfo.fieldCount} campos
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
           <div className="mt-2 text-xs text-blue-600">
             <p><strong>Endpoint API:</strong> http://93.127.135.52:6011/form-responses/</p>
+            <p><strong>Estructura de envío:</strong> Respuestas organizadas por páginas</p>
           </div>
         </div>
       </div>

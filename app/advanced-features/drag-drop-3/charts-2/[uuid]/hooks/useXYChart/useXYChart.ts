@@ -1,65 +1,8 @@
 // /lib/hooks/useXYChart.ts
-import { useRef, useEffect } from "react";
-
-declare const window: any;
+import { useXYChartCommon, getSeriesNames, getColors } from './useXYChartCommon';
 
 export function useXYChart() {
-  const rootRef = useRef<any>(null);
-
-  const loadAmCharts = () => {
-    return new Promise<void>((resolve) => {
-      if (typeof window === "undefined") return resolve();
-
-      if (window.am5 && window.am5xy && window.am5themes_Animated) {
-        return resolve();
-      }
-
-      const scripts = [
-        { src: "https://cdn.amcharts.com/lib/5/index.js", key: "am5" },
-        { src: "https://cdn.amcharts.com/lib/5/xy.js", key: "am5xy" },
-        { src: "https://cdn.amcharts.com/lib/5/themes/Animated.js", key: "am5themes_Animated" }
-      ];
-
-      let loaded = 0;
-
-      scripts.forEach(({ src, key }) => {
-        if (window[key]) {
-          loaded++;
-          if (loaded === scripts.length) resolve();
-          return;
-        }
-
-        const script = document.createElement("script");
-        script.src = src;
-        script.async = true;
-
-        script.onload = () => {
-          loaded++;
-          if (loaded === scripts.length) resolve();
-        };
-
-        document.head.appendChild(script);
-      });
-    });
-  };
-
-  const safeDispose = () => {
-    if (rootRef.current) {
-      try {
-        if (!rootRef.current.isDisposed()) rootRef.current.dispose();
-      } catch (e) {
-        // ignore dispose errors
-      }
-      rootRef.current = null;
-    }
-  };
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      safeDispose();
-    };
-  }, []);
+  const { rootRef, loadAmCharts, safeDispose } = useXYChartCommon();
 
   const renderXYChart = async (data: any[], xField: string, yField: string, xFieldName: string, yFieldName: string) => {
     await loadAmCharts();
@@ -79,7 +22,6 @@ export function useXYChart() {
       return;
     }
 
-    // Limpiar contenedor completamente
     target.innerHTML = '';
     safeDispose();
 
@@ -92,16 +34,16 @@ export function useXYChart() {
       const chart = root.container.children.push(am5xy.XYChart.new(root, {
         panX: false,
         panY: false,
-        wheelX: "panX",
-        wheelY: "zoomX",
+        wheelX: "none",
+        wheelY: "none",
         paddingLeft: 0,
         layout: root.verticalLayout
       }));
 
-      // Add scrollbar
-      chart.set("scrollbarX", am5.Scrollbar.new(root, {
-        orientation: "horizontal"
-      }));
+      // ELIMINAR o COMENTAR esta línea para quitar la barra de desplazamiento
+      // chart.set("scrollbarX", am5.Scrollbar.new(root, {
+      //   orientation: "horizontal"
+      // }));
 
       // Create axes
       let xRenderer = am5xy.AxisRendererX.new(root, {
@@ -129,30 +71,8 @@ export function useXYChart() {
         x: am5.p50
       }));
 
-      // Colores para las series
-      const colors = [
-        am5.color("#3B82F6"), // Azul
-        am5.color("#EC4899"), // Rosa
-        am5.color("#10B981"), // Verde
-        am5.color("#F59E0B"), // Amarillo
-        am5.color("#8B5CF6"), // Púrpura
-        am5.color("#EF4444"), // Rojo
-        am5.color("#06B6D4"), // Cian
-        am5.color("#84CC16"), // Verde lima
-      ];
-
-      // Encontrar todas las series únicas (excluir campos especiales)
-      const seriesNames = [...new Set(
-        data.flatMap(item => 
-          Object.keys(item).filter(key => 
-            key !== 'category' && 
-            key !== 'total' && 
-            key !== 'fullCategory' && 
-            key !== 'realPercent' &&
-            key !== 'animal' // También excluir 'animal' si existe
-          )
-        )
-      )];
+      const seriesNames = getSeriesNames(data);
+      const colors = getColors(am5);
 
       console.log('Series encontradas:', seriesNames);
 
@@ -184,17 +104,11 @@ export function useXYChart() {
         });
 
         series.data.setAll(data);
-
-        // Make stuff animate on load
         series.appear();
-
-        // Add to legend
         legend.data.push(series);
       });
 
-      // Make stuff animate on load
       chart.appear(1000, 100);
-
       console.log('Gráfico XY dinámico renderizado con', seriesNames.length, 'series');
 
     } catch (error) {
