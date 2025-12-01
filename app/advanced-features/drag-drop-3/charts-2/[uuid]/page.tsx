@@ -93,7 +93,7 @@ export default function FormStatsPage() {
   }, [cleanupAllCharts]);
 
   // Renderizado de mini gráficos
-  useEffect(() => {
+    useEffect(() => {
     if (isAnimating) return;
     
     draggedIcons.forEach((icon, index) => {
@@ -101,15 +101,11 @@ export default function FormStatsPage() {
         let data;
         let chartType = icon.type;
         
-        if (icon.type === 'xy') {
-          // Para gráficos XY, generar datos específicos
-          const [xField, yField] = icon.field.split('___');
-          if (xField && yField) {
-            data = generateXYData(responses, xField, yField);
-          } else {
-            console.error('Invalid XY field format:', icon.field);
-            return;
-          }
+        // Para gráficos XY (xyChart, xyChart-2, xyChart-3)
+        if (chartType.startsWith('xyChart')) {
+          // NO generamos datos aquí, pasamos responses directamente
+          // El renderer de mini charts se encargará de procesarlos
+          data = responses;
         } else {
           // Gráfico normal de un solo campo
           data = generateChartData(responses, icon.field, 12);
@@ -296,6 +292,56 @@ export default function FormStatsPage() {
     setSelectedXField('');
     setSelectedYField('');
   };
+
+  const handleRenderXYChart = (type: XYChartType, xField: string, yField: string) => {
+  console.log(`Renderizando gráfico ${type} con campos:`, xField, yField);
+  
+  const xyData = generateXYData(responses, xField, yField);
+  
+  // Limpiar gráficos antes de renderizar
+  cleanupMainCharts();
+  
+  setTimeout(async () => {
+    try {
+      if (xyData && xyData.length > 0) {
+        switch (type) {
+          case 'xyChart':
+            await renderXYChart(
+              xyData, 
+              xField, 
+              yField,
+              formatFieldName(xField),
+              formatFieldName(yField)
+            );
+            break;
+          case 'xyChart-2':
+            await renderXYChart2(
+              xyData, 
+              xField, 
+              yField,
+              formatFieldName(xField),
+              formatFieldName(yField)
+            );
+            break;
+          case 'xyChart-3':
+            await renderXYChart3(
+              xyData, 
+              xField, 
+              yField,
+              formatFieldName(xField),
+              formatFieldName(yField)
+            );
+            break;
+        }
+        console.log(`Gráfico ${type} renderizado exitosamente`);
+      } else {
+        console.warn('No hay datos para el gráfico XY');
+      }
+    } catch (err) {
+      console.error('Error renderizando gráfico XY:', err);
+    }
+  }, 200);
+};
 
   // Drag & Drop
   const handleDragStart = (e: React.DragEvent, iconData: Omit<DraggedIcon, 'field'>) => {
@@ -491,7 +537,7 @@ export default function FormStatsPage() {
                 xyChartActive={xyChartActive}
                 selectedIconXy={selectedIconXy}
                 onXYIconClick={handleXYIconClick}
-                
+                renderXYChart={handleRenderXYChart}
                 activeXField={activeXField}
                 activeYField={activeYField}
                 onResetXYSelection={handleResetXYSelection}

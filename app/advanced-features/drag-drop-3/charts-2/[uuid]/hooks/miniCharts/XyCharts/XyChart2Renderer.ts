@@ -2,7 +2,7 @@ import { RefObject } from "react";
 
 declare const window: any;
 
-interface XYChartRendererProps {
+interface XYChartRenderer2Props {
   responses: any[];
   xField: string;
   yField: string;
@@ -14,15 +14,13 @@ interface XYChartRendererProps {
   safeDispose: (chartId: string) => void;
 }
 
-// Función para generar datos XY dinámicamente
-const generateDynamicXYData = (responses: any[], xField: string, yField: string): any => {
+const generateDynamicRadarData = (responses: any[], xField: string, yField: string): any => {
   const dataMap: Record<string, Record<string, number>> = {};
   const allYValues = new Set<string>();
   
-  console.log('Generando datos dinámicos para mini chart:', { xField, yField, totalResponses: responses.length });
+  console.log('Generando datos dinámicos para gráfico radar:', { xField, yField, totalResponses: responses.length });
 
   responses.forEach((response, index) => {
-    // Verificar que la respuesta tenga el objeto responses y los campos existan
     if (!response || !response.responses) {
       console.warn(`Respuesta ${index} no tiene objeto responses`);
       return;
@@ -36,10 +34,9 @@ const generateDynamicXYData = (responses: any[], xField: string, yField: string)
       yValueRaw,
       xField,
       yField,
-      availableFields: Object.keys(response.responses) // Mostrar campos disponibles
+      availableFields: Object.keys(response.responses)
     });
 
-    // Verificar que ambos campos tengan valores
     if (!xValue || !yValueRaw) {
       console.log(`  Campos incompletos - X: ${xValue}, Y: ${yValueRaw}`);
       return;
@@ -85,25 +82,23 @@ const generateDynamicXYData = (responses: any[], xField: string, yField: string)
   console.log('Mapa de datos crudo:', dataMap);
   console.log('Todos los valores Y encontrados:', Array.from(allYValues));
 
-  // Si no hay datos, retornar estructura vacía
   if (Object.keys(dataMap).length === 0) {
-    console.warn('No se encontraron datos válidos para generar el gráfico');
+    console.warn('No se encontraron datos válidos para generar el gráfico radar');
     return { data: [], series: [] };
   }
 
   const result = Object.entries(dataMap).map(([xValue, yCounts]) => {
     const dataPoint: any = { category: xValue };
     
-    // Agregar todos los valores Y (incluso los que son 0 para consistencia)
     allYValues.forEach(yValue => {
       dataPoint[yValue] = yCounts[yValue] || 0;
     });
     
     dataPoint.total = Object.values(yCounts).reduce((sum, count) => sum + count, 0);
     return dataPoint;
-  }).sort((a, b) => b.total - a.total);
+  });
 
-  console.log('Datos dinámicos para mini chart:', { 
+  console.log('Datos dinámicos para gráfico radar:', { 
     data: result, 
     series: Array.from(allYValues) 
   });
@@ -111,7 +106,21 @@ const generateDynamicXYData = (responses: any[], xField: string, yField: string)
   return { data: result, series: Array.from(allYValues) };
 };
 
-export const renderMiniXYChart = async ({
+// Función para obtener colores pastel
+const getPastelColors = (am5: any) => {
+  return [
+    am5.color("#A7C7E7"), // Azul pastel
+    am5.color("#F8C8DC"), // Rosa pastel
+    am5.color("#C1E1C1"), // Verde pastel
+    am5.color("#FFD8A8"), // Naranja pastel
+    am5.color("#D8BFD8"), // Lavanda pastel
+    am5.color("#FFB6C1"), // Rosa claro pastel
+    am5.color("#B5EAD7"), // Menta pastel
+    am5.color("#E2F0CB"), // Lima pastel
+  ];
+};
+
+export const renderMiniXYChart2 = async ({
   responses,
   xField,
   yField,
@@ -121,13 +130,25 @@ export const renderMiniXYChart = async ({
   rootRefs,
   seriesRefs,
   safeDispose
-}: XYChartRendererProps): Promise<void> => {
-  if (!window.am5 || !window.am5xy || !window.am5themes_Animated) {
+}: XYChartRenderer2Props): Promise<void> => {
+  // Cargar módulo radar si no está disponible
+  if (!window.am5radar) {
+    const script = document.createElement('script');
+    script.src = "https://cdn.amcharts.com/lib/5/radar.js";
+    script.async = true;
+    document.head.appendChild(script);
+    
+    await new Promise((resolve) => {
+      script.onload = resolve;
+    });
+  }
+
+  if (!window.am5 || !window.am5xy || !window.am5radar || !window.am5themes_Animated) {
     console.warn('amCharts no está disponible');
     return;
   }
 
-  const { am5, am5xy, am5themes_Animated } = window;
+  const { am5, am5xy, am5radar, am5themes_Animated } = window;
 
   if (rootRefs.current[containerId]) {
     safeDispose(containerId);
@@ -145,7 +166,7 @@ export const renderMiniXYChart = async ({
   try {
     // Verificar que tenemos respuestas válidas
     if (!responses || !Array.isArray(responses) || responses.length === 0) {
-      console.warn('No hay respuestas válidas para generar el gráfico');
+      console.warn('No hay respuestas válidas para generar el gráfico radar');
       const noDataMessage = document.createElement('div');
       noDataMessage.className = 'flex items-center justify-center h-full text-gray-500 text-xs';
       noDataMessage.textContent = 'No hay datos para mostrar';
@@ -154,10 +175,10 @@ export const renderMiniXYChart = async ({
     }
 
     // Generar datos dinámicamente
-    const { data, series } = generateDynamicXYData(responses, xField, yField);
+    const { data, series } = generateDynamicRadarData(responses, xField, yField);
     
     if (data.length === 0 || series.length === 0) {
-      console.warn('No hay datos suficientes para generar el gráfico XY');
+      console.warn('No hay datos suficientes para generar el gráfico radar');
       const noDataMessage = document.createElement('div');
       noDataMessage.className = 'flex items-center justify-center h-full text-gray-500 text-xs';
       noDataMessage.textContent = 'No hay datos para mostrar';
@@ -170,95 +191,66 @@ export const renderMiniXYChart = async ({
     
     root.setThemes([am5themes_Animated.new(root)]);
 
-    const chart = root.container.children.push(
-      am5xy.XYChart.new(root, {
-        panX: false,
-        panY: false,
-        paddingLeft: 5,
-        paddingRight: 5,
-        paddingTop: 5,
-        paddingBottom: 5,
-        width: am5.percent(100),
-        height: am5.percent(100)
-      })
-    );
+    // Configuración del chart sin interacción de rueda del mouse
+    const chart = root.container.children.push(am5radar.RadarChart.new(root, {
+      panX: false,
+      panY: false,
+      wheelX: "none",
+      wheelY: "none",
+      width: am5.percent(100),
+      height: am5.percent(100)
+    }));
 
-    // Eje X - Valores del primer campo
-    const xRenderer = am5xy.AxisRendererX.new(root, { 
-      minGridDistance: 20,
-      inside: false
-    });
+    // Configurar el cursor sin comportamiento de zoom
+    const cursor = chart.set("cursor", am5radar.RadarCursor.new(root, {
+      behavior: "none"
+    }));
+    cursor.lineY.set("visible", false);
+    cursor.lineX.set("visible", false);
 
-    xRenderer.grid.template.setAll({ visible: false });
+    const xRenderer = am5radar.AxisRendererCircular.new(root, {});
     xRenderer.labels.template.setAll({ 
-      fontSize: 8,
-      maxWidth: 30,
-      textOverflow: "ellipsis",
-      inside: false,
-      rotation: -45
+      radius: 10,
+      fontSize: 8 
     });
 
-    const xAxis = chart.xAxes.push(
-      am5xy.CategoryAxis.new(root, { 
-        categoryField: "category", 
-        renderer: xRenderer 
-      })
-    );
-    xAxis.data.setAll(data);
+    const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+      maxDeviation: 0,
+      categoryField: "category",
+      renderer: xRenderer,
+      tooltip: am5.Tooltip.new(root, {})
+    }));
 
-    // Eje Y - Valores
-    const yRenderer = am5xy.AxisRendererY.new(root, { inside: true });
-    yRenderer.grid.template.setAll({ visible: false });
-    yRenderer.labels.template.setAll({ fontSize: 8, inside: true });
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5radar.AxisRendererRadial.new(root, {})
+    }));
 
-    const yAxis = chart.yAxes.push(
-      am5xy.ValueAxis.new(root, { 
-        min: 0, 
-        renderer: yRenderer 
-      })
-    );
-
-    // Colores para las series
-    const colors = [
-      am5.color("#3B82F6"), // Azul
-      am5.color("#EC4899"), // Rosa
-      am5.color("#10B981"), // Verde
-      am5.color("#F59E0B"), // Amarillo
-      am5.color("#8B5CF6"), // Púrpura
-      am5.color("#EF4444"), // Rojo
-      am5.color("#06B6D4"), // Cian
-      am5.color("#84CC16"), // Verde lima
-    ];
-
+    const colors = getPastelColors(am5);
     const seriesList: any[] = [];
 
-    // Crear una serie por cada valor único del campo Y
-    series.forEach((seriesName, index) => {
+    console.log('Series encontradas para gráfico radar:', series);
+
+    series.forEach((seriesName: any, index: any) => {
       const color = colors[index % colors.length];
       
-      const seriesItem = chart.series.push(
-        am5xy.ColumnSeries.new(root, {
-          name: seriesName,
-          stacked: true,
-          xAxis: xAxis,
-          yAxis: yAxis,
-          valueYField: seriesName,
-          categoryXField: "category",
-          tooltip: am5.Tooltip.new(root, {
-            labelText: `${seriesName}: {valueY}`,  
-            pointerOrientation: "vertical"
-          })
+      const seriesItem = chart.series.push(am5radar.RadarColumnSeries.new(root, {
+        stacked: true,
+        name: seriesName,
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: seriesName,
+        categoryXField: "category",
+        tooltip: am5.Tooltip.new(root, {
+          labelText: "{name}: {valueY}"
         })
-      );
+      }));
 
-      seriesItem.columns.template.setAll({ 
-        width: am5.percent(60), 
-        cornerRadiusTL: 2, 
-        cornerRadiusTR: 2, 
-        strokeOpacity: 0,
+      seriesItem.columns.template.setAll({
+        tooltipText: "{name}: {valueY}",
         fill: color,
-        fillOpacity: 0.8,
-        interactive: true
+        strokeOpacity: 0,
+        cornerRadius: 3,
+        width: am5.percent(60)
       });
 
       seriesItem.data.setAll(data);
@@ -267,17 +259,17 @@ export const renderMiniXYChart = async ({
 
     seriesRefs.current[containerId] = seriesList;
 
-    // Animaciones
+    xAxis.data.setAll(data);
+    
     seriesList.forEach(seriesItem => seriesItem.appear(300));
-    chart.appear(300);
+    chart.appear(300, 100);
 
-    console.log(`Mini gráfico XY dinámico creado en ${containerId} con ${series.length} series`);
+    console.log(`Gráfico radar creado en ${containerId} con ${series.length} series`);
 
   } catch (error) {
-    console.error('Error creando mini XY chart dinámico:', error);
+    console.error('Error creando gráfico radar:', error);
     safeDispose(containerId);
-    
-    // Mostrar mensaje de error en el contenedor
+
     const target = document.getElementById(containerId);
     if (target) {
       const errorMessage = document.createElement('div');

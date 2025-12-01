@@ -28,15 +28,15 @@ interface ChartControlsProps {
   onResetXYSelection?: () => void;
   onFieldDrop?: (field: string, axis: 'x' | 'y') => void;
   responses: FormResponse[];
-  selectedIconXy: XYChartType; // ← Agregar esta prop
+  selectedIconXy: XYChartType;
   onXYIconClick: (iconName: XYChartType) => void;
+  renderXYChart: (type: XYChartType, xField: string, yField: string) => void; // ← NUEVA PROP
 }
 
 interface PageFields {
   [pageName: string]: string[];
 }
 
-// Definir los tipos de gráficos XY disponibles
 type XYChartType = 'xyChart' | 'xyChart-2' | 'xyChart-3';
 
 export default function ChartControls({
@@ -60,20 +60,48 @@ export default function ChartControls({
   onFieldDrop,
   selectedIconXy, 
   onXYIconClick, 
-  responses
+  responses,
+  renderXYChart // ← NUEVA PROP
 }: ChartControlsProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [pageFields, setPageFields] = useState<PageFields>({});
   const [pageTabs, setPageTabs] = useState<string[]>(['all']);
+  
   const handleXYTypeSelect = (type: XYChartType) => {
-    onXYIconClick(type); // ← Usar la prop del padre
+    onXYIconClick(type);
+    // Renderizar el gráfico inmediatamente al hacer clic
+    if (activeXField && activeYField) {
+      renderXYChart(type, activeXField, activeYField);
+    }
   };
+
+  // Efecto para renderizar automáticamente cuando cambian los campos X e Y
+  useEffect(() => {
+    if (selectedXField && selectedYField && selectedXField !== selectedYField) {
+      console.log('Campos XY cambiados, aplicando selección:', { selectedXField, selectedYField });
+      if (onApplyXYSelection) {
+        onApplyXYSelection(selectedXField, selectedYField);
+      }
+    }
+  }, [selectedXField, selectedYField, onApplyXYSelection]);
+
+  // Efecto para renderizar el gráfico cuando se activa el modo XY
+  useEffect(() => {
+    if (xyChartActive && activeXField && activeYField && selectedIconXy) {
+      console.log('Renderizando gráfico XY:', { 
+        type: selectedIconXy, 
+        xField: activeXField, 
+        yField: activeYField 
+      });
+      renderXYChart(selectedIconXy, activeXField, activeYField);
+    }
+  }, [xyChartActive, activeXField, activeYField, selectedIconXy, renderXYChart]);
+
   // Organizar campos por página
   useEffect(() => {
     const pages: PageFields = { all: formFields };
     const tabs = ['all'];
 
-    // Procesar todas las respuestas para extraer la estructura de páginas
     if (responses.length > 0) {
       const firstResponse = responses[0];
       
@@ -81,7 +109,6 @@ export default function ChartControls({
         const pageName = formatPageName(pageKey);
         tabs.push(pageName);
         
-        // Extraer campos de esta página de la primera respuesta
         const pageData = firstResponse.responses[pageKey];
         if (pageData && typeof pageData === 'object') {
           pages[pageName] = Object.keys(pageData);
@@ -94,9 +121,8 @@ export default function ChartControls({
     setPageFields(pages);
     setPageTabs(tabs);
     
-    // Si hay páginas, establecer la primera como activa
     if (tabs.length > 1 && activeTab === 'all') {
-      setActiveTab(tabs[1]); // Primera página específica en lugar de "all"
+      setActiveTab(tabs[1]);
     }
   }, [formFields, responses]);
 
@@ -148,16 +174,15 @@ export default function ChartControls({
     const dragData: DraggedIcon = {
       icon: getXYIcon(type),
       field: `${activeXField}___${activeYField}`,
-      type: 'xy', // Mantener el tipo original 'xy' para que funcione
+      type: type,
       title: `${getXYTitle(type)}: ${formatFieldName(activeXField)} vs ${formatFieldName(activeYField)}`
     };
     
     e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    console.log(`Iniciando arrastre de ${type} con datos:`, dragData);
   };
 
-
-
-  // Handler simplificado para eliminar campos X/Y - SOLO resetear la configuración local
+  // Handler simplificado para eliminar campos X/Y
   const handleRemoveXField = (e: React.MouseEvent) => {
     e.stopPropagation();
     onXFieldChange?.('');
@@ -189,7 +214,7 @@ export default function ChartControls({
       if (fieldData && onFieldDrop) {
         onFieldDrop(fieldData, axis);
         
-        // Si después de este drop ambos campos están llenos, activar el gráfico automáticamente
+        // Auto-aplicar cuando ambos campos están llenos
         if (axis === 'x' && selectedYField && fieldData !== selectedYField) {
           setTimeout(() => {
             if (onApplyXYSelection) {
@@ -226,68 +251,68 @@ export default function ChartControls({
 
         {/* Espacios de arrastre para ejes */}
         <div className="grid grid-cols-4 gap-2 mb-3">
-  <div></div>
-  <div className="flex flex-col items-center">
-    <div 
-      className={`w-full border-2 rounded p-1 text-center min-h-[30px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
-        selectedXField 
-          ? 'border-blue-500 bg-blue-50' 
-          : 'border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-      }`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={(e) => handleDrop(e, 'x')}
-    >
-      {selectedXField ? (
-        <div className="flex items-center justify-between w-full px-1">
-          <span className="text-xs font-medium text-blue-700 truncate">
-            {formatFieldName(selectedXField)}
-          </span>
-          <button 
-            onClick={handleRemoveXField}
-            className="text-red-500 hover:text-red-700 text-xs flex-shrink-0 ml-1"
-          >
-            ✕
-          </button>
-        </div>
-      ) : (
-        <i className="ti ti-axis-x text-gray-400 text-lg"></i>
-      )}
-    </div>
-    <span className="text-xs text-gray-500 mt-1">Eje X</span>
-  </div>
+          <div></div>
+          <div className="flex flex-col items-center">
+            <div 
+              className={`w-full border-2 rounded p-1 text-center min-h-[30px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                selectedXField 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, 'x')}
+            >
+              {selectedXField ? (
+                <div className="flex items-center justify-between w-full px-1">
+                  <span className="text-xs font-medium text-blue-700 truncate">
+                    {formatFieldName(selectedXField)}
+                  </span>
+                  <button 
+                    onClick={handleRemoveXField}
+                    className="text-red-500 hover:text-red-700 text-xs flex-shrink-0 ml-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <i className="ti ti-axis-x text-gray-400 text-lg"></i>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 mt-1">Eje X</span>
+          </div>
 
-  {/* Eje Y */}
-  <div className="flex flex-col items-center">
-    <div 
-      className={`w-full border-2 rounded p-1 text-center min-h-[30px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
-        selectedYField 
-          ? 'border-green-500 bg-green-50' 
-          : 'border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50'
-      }`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={(e) => handleDrop(e, 'y')}
-    >
-      {selectedYField ? (
-        <div className="flex items-center justify-between w-full px-1">
-          <span className="text-xs font-medium text-green-700 truncate">
-            {formatFieldName(selectedYField)}
-          </span>
-          <button 
-            onClick={handleRemoveYField}
-            className="text-red-500 hover:text-red-700 text-xs flex-shrink-0 ml-1"
-          >
-            ✕
-          </button>
+          {/* Eje Y */}
+          <div className="flex flex-col items-center">
+            <div 
+              className={`w-full border-2 rounded p-1 text-center min-h-[30px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                selectedYField 
+                  ? 'border-green-500 bg-green-50' 
+                  : 'border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, 'y')}
+            >
+              {selectedYField ? (
+                <div className="flex items-center justify-between w-full px-1">
+                  <span className="text-xs font-medium text-green-700 truncate">
+                    {formatFieldName(selectedYField)}
+                  </span>
+                  <button 
+                    onClick={handleRemoveYField}
+                    className="text-red-500 hover:text-red-700 text-xs flex-shrink-0 ml-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <i className="ti ti-axis-y text-gray-400 text-lg"></i>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 mt-1">Eje Y</span>
+          </div>
         </div>
-      ) : (
-        <i className="ti ti-axis-y text-gray-400 text-lg"></i>
-      )}
-    </div>
-    <span className="text-xs text-gray-500 mt-1">Eje Y</span>
-  </div>
-</div>
 
         {/* TRES BOTONES VERDES INDEPENDIENTES */}
         {canDragXY && (
@@ -365,32 +390,31 @@ export default function ChartControls({
           </div>
         )}
 
-        {/* Campos disponibles para arrastrar - Organizados por pestaña */}
+        {/* Campos disponibles para arrastrar */}
         <div className="mb-2">
-          
           <div className="flex flex-row flex-wrap gap-1 max-h-20 overflow-y-auto">
             {currentFields.map((f) => (
-  <div
-    key={f}
-    draggable
-    onDragStart={(e) => {
-      e.dataTransfer.setData('text/plain', f);
-      e.dataTransfer.effectAllowed = 'copy';
-    }}
-    onClick={() => onFieldClick(f)}
-    className={`w-[calc(25%-4px)] px-2 py-1 rounded border text-xs transition-all duration-200 cursor-grab active:cursor-grabbing flex-shrink-0 ${
-      selectedField === f
-        ? 'border-blue-500 bg-blue-50 text-blue-700'
-        : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
-    }`}
-    title={formatFieldName(f)}
-  >
-    <div className="flex items-center gap-1">
-      <span className="truncate flex-1">{formatFieldName(f)}</span>
-      <i className="ti ti-grip-horizontal text-gray-400 text-xs flex-shrink-0"></i>
-    </div>
-  </div>
-))}
+              <div
+                key={f}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', f);
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                onClick={() => onFieldClick(f)}
+                className={`w-[calc(25%-4px)] px-2 py-1 rounded border text-xs transition-all duration-200 cursor-grab active:cursor-grabbing flex-shrink-0 ${
+                  selectedField === f
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+                title={formatFieldName(f)}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="truncate flex-1">{formatFieldName(f)}</span>
+                  <i className="ti ti-grip-horizontal text-gray-400 text-xs flex-shrink-0"></i>
+                </div>
+              </div>
+            ))}
             {currentFields.length === 0 && (
               <div className="text-xs text-gray-500 italic px-2 py-1">
                 No hay campos en esta página
@@ -401,37 +425,35 @@ export default function ChartControls({
 
         {/* Tipos de Gráficos Individuales */}
         {selectedField && !xyChartActive && (
-  <div className="mt-2">
-    <h3 className="text-xs font-semibold text-gray-700 mb-1">Tipos</h3>
-    <div className="grid grid-cols-8 gap-1">
-      {availableIcons.map((icon) => (
-        <button
-          key={icon.name}
-          draggable={!icon.disabled}
-          onDragStart={(e) => onDragStart(e, { 
-            icon: icon.icon, 
-            type: icon.name, 
-            title: icon.title 
-          })}
-          onClick={() => onIconClick(icon.name)}
-          className={`aspect-square w-full border text-sm transition-all duration-200 flex items-center justify-center ${
-            icon.disabled 
-              ? 'cursor-not-allowed opacity-30 border-gray-200 bg-gray-100 text-gray-400' 
-              : selectedIcon === icon.name 
-                ? 'border-blue-500 bg-blue-100 text-blue-600 cursor-pointer' 
-                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-grab active:cursor-grabbing'
-          }`}
-          title={icon.disabled ? `${icon.title} (Ya asignado)` : icon.title}
-          disabled={icon.disabled}
-        >
-          <i className={icon.icon}></i>
-        </button>
-      ))}
-    </div>
-  </div>
-)}
-
-        
+          <div className="mt-2">
+            <h3 className="text-xs font-semibold text-gray-700 mb-1">Tipos</h3>
+            <div className="grid grid-cols-8 gap-1">
+              {availableIcons.map((icon) => (
+                <button
+                  key={icon.name}
+                  draggable={!icon.disabled}
+                  onDragStart={(e) => onDragStart(e, { 
+                    icon: icon.icon, 
+                    type: icon.name, 
+                    title: icon.title 
+                  })}
+                  onClick={() => onIconClick(icon.name)}
+                  className={`aspect-square w-full border text-sm transition-all duration-200 flex items-center justify-center ${
+                    icon.disabled 
+                      ? 'cursor-not-allowed opacity-30 border-gray-200 bg-gray-100 text-gray-400' 
+                      : selectedIcon === icon.name 
+                        ? 'border-blue-500 bg-blue-100 text-blue-600 cursor-pointer' 
+                        : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-grab active:cursor-grabbing'
+                  }`}
+                  title={icon.disabled ? `${icon.title} (Ya asignado)` : icon.title}
+                  disabled={icon.disabled}
+                >
+                  <i className={icon.icon}></i>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Vista previa del gráfico */}
@@ -454,7 +476,6 @@ export default function ChartControls({
             </div>
           ) : (showXYChart || showXYReady) ? (
             <div className="w-full h-full">
-              {/* Renderizar diferentes gráficos XY según el tipo seleccionado */}
               {selectedIconXy === 'xyChart' && <div id="xyChart" style={{ width: '100%', height: '100%' }} />}
               {selectedIconXy === 'xyChart-2' && <div id="xyChart-2" style={{ width: '100%', height: '100%' }} />}
               {selectedIconXy === 'xyChart-3' && <div id="xyChart-3" style={{ width: '100%', height: '100%' }} />}

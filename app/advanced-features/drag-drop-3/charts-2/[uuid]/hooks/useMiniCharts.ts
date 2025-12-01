@@ -26,7 +26,7 @@ export const useMiniCharts = () => {
     data: any[], 
     field: string, 
     containerId: string,
-    responses?: any[] // ← Respuestas completas como parámetro opcional
+    responses?: any[]
   ) => {
     console.log(`Renderizando mini chart ${type}:`, { 
       dataLength: data?.length, 
@@ -65,27 +65,77 @@ export const useMiniCharts = () => {
           });
           break;
 
-        case 'xy':
-          // Para gráficos XY, usar las responses completas si están disponibles
-          const [xField, yField] = field.split('___');
-          const { renderMiniXYChart } = await import('./miniCharts/XYChartRenderer');
+        case 'xyChart': // ← NUEVO: Gráfico de dispersión (barras apiladas)
+          const [xField1, yField1] = field.split('___');
+          const { renderMiniXYChart } = await import('./miniCharts/XyCharts/XyChartRenderer');
           
-          // Usar responses si están disponibles, de lo contrario usar data
-          const dataToUse = responses && responses.length > 0 ? responses : data;
+          const dataToUse1 = responses && responses.length > 0 ? responses : data;
           
-          console.log('Datos para gráfico XY:', {
+          console.log('Datos para gráfico XY (Dispersión):', {
             usingResponses: !!responses,
-            dataToUseLength: dataToUse.length,
-            xField,
-            yField
+            dataToUseLength: dataToUse1.length,
+            xField: xField1,
+            yField: yField1
           });
 
           await renderMiniXYChart({
-            responses: dataToUse, // ← Usar las respuestas completas
-            xField,
-            yField,
-            xFieldName: xField,
-            yFieldName: yField,
+            responses: dataToUse1,
+            xField: xField1,
+            yField: yField1,
+            xFieldName: xField1,
+            yFieldName: yField1,
+            containerId,
+            rootRefs,
+            seriesRefs,
+            safeDispose
+          });
+          break;
+
+        case 'xyChart-2': // ← NUEVO: Gráfico de líneas (radar)
+          const [xField2, yField2] = field.split('___');
+          const { renderMiniXYChart2 } = await import('./miniCharts/XyCharts/XyChart2Renderer');
+          
+          const dataToUse2 = responses && responses.length > 0 ? responses : data;
+          
+          console.log('Datos para gráfico XY-2 (Radar):', {
+            usingResponses: !!responses,
+            dataToUseLength: dataToUse2.length,
+            xField: xField2,
+            yField: yField2
+          });
+
+          await renderMiniXYChart2({
+            responses: dataToUse2,
+            xField: xField2,
+            yField: yField2,
+            xFieldName: xField2,
+            yFieldName: yField2,
+            containerId,
+            rootRefs,
+            seriesRefs,
+            safeDispose
+          });
+          break;
+
+        case 'xyChart-3': // ← NUEVO: Gráfico de barras agrupadas
+          const [xField3, yField3] = field.split('___');
+          const { renderMiniXYChart3 } = await import('./miniCharts/XyCharts/XyChart3Renderer');
+          
+          const dataToUse3 = responses && responses.length > 0 ? responses : data;
+          
+          console.log('Datos para gráfico XY-3 (Barras):', {
+            usingResponses: !!responses,
+            dataToUseLength: dataToUse3.length,
+            xField: xField3,
+            yField: yField3
+          });
+
+          await renderMiniXYChart3({
+            responses: dataToUse3,
+            xField: xField3,
+            yField: yField3,
+            xFieldName: xField3,
+            yFieldName: yField3,
             containerId,
             rootRefs,
             seriesRefs,

@@ -119,7 +119,7 @@ export function useXYChart3() {
       safeDispose();
     }
   };
-
+  
   return {
     renderXYChart3,
     disposeXYChart3: safeDispose,
